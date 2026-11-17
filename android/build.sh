@@ -25,11 +25,15 @@ javac --release 8 -nowarn -classpath "$ANDROID_JAR" -d "$OUT/classes" \
   $(find src "$OUT/gen" -name '*.java') 2>&1 | grep -v 'bootstrap classpath\|^1 warning' || true
 dalvik-exchange --dex --output="$OUT/classes.dex" "$OUT/classes"
 
-aapt package -f -M AndroidManifest.xml -S res -A "$OUT/assets" -I "$ANDROID_JAR" -F "$OUT/unsigned.apk"
+# La versión visible es la de AndroidManifest.xml (versionName). El número interno (versionCode)
+# sale de la cantidad de commits, así cada compilación nueva se instala encima de la anterior.
+VERSION_CODE=$(( $(git rev-list --count HEAD 2>/dev/null || echo 1) + 100 ))
+aapt package -f -M AndroidManifest.xml -S res -A "$OUT/assets" -I "$ANDROID_JAR" -F "$OUT/unsigned.apk" \
+  --version-code "$VERSION_CODE"
 (cd "$OUT" && aapt add -f unsigned.apk classes.dex >/dev/null)
 zipalign -f -p 4 "$OUT/unsigned.apk" "$OUT/aligned.apk"
 apksigner sign --ks "$KEYSTORE" --ks-pass "pass:$KEYPASS" --key-pass "pass:$KEYPASS" --ks-key-alias inventario \
   --out Inventario.apk "$OUT/aligned.apk"
 apksigner verify Inventario.apk
 rm -f Inventario.apk.idsig
-echo "Listo: $(pwd)/Inventario.apk ($(du -h Inventario.apk | cut -f1))"
+echo "Listo: $(pwd)/Inventario.apk ($(du -h Inventario.apk | cut -f1), versionCode $VERSION_CODE)"
