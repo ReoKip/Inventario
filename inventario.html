@@ -341,7 +341,7 @@ normalize();
 
 let theme="light", acct=null, userApi=null, artifactApi=null, assetsApi=null, dlApi=null;
 try{ const st=localStorage.getItem(TH_KEY); if(st==="light"||st==="dark") theme=st; else if(state.theme==="dark") theme="dark"; }catch(e){ if(state.theme==="dark") theme="dark"; }
-function applyTheme(){ document.documentElement.setAttribute("data-theme",theme); }
+function applyTheme(){ document.documentElement.setAttribute("data-theme",theme); try{ if(window.AndroidApp&&window.AndroidApp.setTheme) window.AndroidApp.setTheme(theme==="dark"); }catch(e){} }
 applyTheme();
 const VW_KEY="inventario-vista";
 const ui={view:(function(){ try{ const v=localStorage.getItem(VW_KEY); return v==="list"||v==="gal"?v:"cards"; }catch(e){ return "cards"; } })(),tab:"inv",q:"",cat:"",size:"",use:"",sup:"",lowOnly:false,sort:"name",modal:null,mq:"",mtype:"",per:"hoy",lastPay:"efectivo"};
@@ -786,7 +786,7 @@ function render(){
   const anim=ui.anim; ui.anim=null;
   h+='<div class="tabc'+(anim?" in-"+anim:"")+'">';
   let fab="";
-  if(mode==="local") h+='<div class="banner">Los cambios se guardan solo en este dispositivo. Abre la app desde su enlace en Claude para guardarlos en la app.</div>';
+  if(mode==="local"&&!window.AndroidApp) h+='<div class="banner">Los cambios se guardan solo en este dispositivo. Abre la app desde su enlace en Claude para guardarlos en la app.</div>';
   if(ro) h+='<div class="banner">Estás viendo este inventario en modo solo lectura.</div>';
 
   if(ui.tab==="inv"){
@@ -875,12 +875,14 @@ function render(){
     const bk=Object.keys(bycat).sort(cmp.compare);
     if(bk.length){ h+='<h2 class="sec">Stock por categoría</h2><div class="list">'; bk.forEach(k=>{ h+='<div class="row"><div class="grow"><div class="t">'+esc(k)+'</div><div class="s">'+bycat[k].n+(bycat[k].n===1?" producto":" productos")+'</div></div><div class="q">'+nf.format(bycat[k].u)+'<small>unidades</small></div></div>'; }); h+='</div>'; }
   } else {
+    if(!window.AndroidApp){
     h+='<h2 class="sec">Tu cuenta</h2>';
     if(acct&&(acct.name||acct.email||acct.id)){
       const role=acct.isOwner?"Propietario de este inventario":acct.canEdit?"Puede editar":(ro?"Solo lectura":"Invitado");
       h+='<div class="acct"><img data-ph="av" src="'+esc(acct.avatarUrl)+'" alt=""><div style="min-width:0"><div class="n">'+esc(acct.name||"Tu cuenta de Claude")+'</div>'+(acct.email?'<div class="e">'+esc(acct.email)+'</div>':"")+'<div style="margin-top:6px"><span class="pill adj" style="margin:0">'+role+'</span></div></div></div>';
     } else {
       h+='<div class="acct"><div class="av"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5"/></svg></div><div style="min-width:0"><div class="n">'+(mode==="loading"?"Cargando…":"Sin sesión")+'</div><div class="e" style="white-space:normal">'+(mode==="loading"?"":"Abre la app desde su enlace en Claude para ver tu cuenta.")+'</div></div></div>';
+    }
     }
     h+='<h2 class="sec">Apariencia</h2><div class="setbox"><div class="t" style="font-weight:600">Modo de la aplicación</div><div class="seg"><button type="button" data-theme-set="light" class="'+(theme==="light"?"on":"")+'">Claro</button><button type="button" data-theme-set="dark" class="'+(theme==="dark"?"on":"")+'">Oscuro</button></div></div>';
     const stn=STYPES[state.setup.type];
@@ -1325,6 +1327,28 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&ui.modal&&!busy){ 
 
 render();
 const cu=window.claude&&window.claude.use;
+/* ---------- app de Android ---------- */
+const AND=window.AndroidApp||null;
+if(AND){
+  try{ Object.defineProperty(navigator,"clipboard",{configurable:true,value:{writeText:t=>{ AND.copy(String(t)); return Promise.resolve(); }}}); }catch(e){}
+  const pend={}; let seq=0;
+  window.__androidSaved=(id,ok,code)=>{ const pr=pend[id]; if(!pr) return; delete pend[id]; if(ok) pr.res(); else pr.rej({code:code||"failed"}); };
+  dlApi={save:o=>new Promise((res,rej)=>{
+    const id=++seq; pend[id]={res:res,rej:rej};
+    const blob=o.data instanceof Blob?o.data:new Blob([String(o.data)]);
+    const mime=/\.xlsx$/i.test(o.filename)?"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":"application/json";
+    const fr=new FileReader(); fr.onerror=()=>{ delete pend[id]; rej({code:"failed"}); };
+    fr.onload=()=>{ AND.saveFile(id,o.filename,mime,String(fr.result).split(",")[1]||""); };
+    fr.readAsDataURL(blob);
+  })};
+  window.__androidBack=()=>{
+    if(busy) return true;
+    if(ui.modal){ ui.modal=null; render(); return true; }
+    if(ui.onb){ if(ui.onb.i>0){ syncOnb(); ui.onb.err=""; ui.onb.i--; render(); return true; } if(ui.onb.kind!=="full"){ ui.onb=null; render(); return true; } return false; }
+    if(ui.tab!=="inv"){ ui.anim="l"; ui.prevTab=ui.tab; ui.tab="inv"; render(); window.scrollTo(0,0); return true; }
+    return false;
+  };
+}
 const use=n=>cu?Promise.resolve(window.claude.use(n)).catch(()=>null):Promise.resolve(null);
 use("user").then(api=>{ if(!api||typeof api.me!=="function") return; userApi=api; return Promise.resolve(api.me()).then(me=>{ acct=me; if(ui.onb&&!ui.onb.owner&&me&&me.name&&ui.onb.seq[ui.onb.i]<=1){ ui.onb.owner=me.name; render(); } else if(ui.tab==="set"&&!ui.onb) render(); }); }).catch(()=>{});
 use("assets").then(api=>{ if(api&&typeof api.upload==="function") assetsApi=api; });
