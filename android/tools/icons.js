@@ -1,6 +1,6 @@
 // Genera los íconos de la app (PNG) en res/. Uso: node tools/icons.js
 const {chromium}=require('playwright');const path=require('path');const fs=require('fs');
-// Logo de Stocky: tres cajas apiladas.
+// Logo de Stok: tres cajas apiladas.
 const BOX='<rect x="3" y="12.5" width="8.5" height="8.5" rx="1.8"/><rect x="12.5" y="12.5" width="8.5" height="8.5" rx="1.8"/><rect x="7.75" y="3" width="8.5" height="8.5" rx="1.8"/><path d="M7.25 12.5v2.6M16.75 12.5v2.6M12 3v2.6"/>';
 const GRAD='<linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff8361"/><stop offset=".55" stop-color="#e0507a"/><stop offset="1" stop-color="#7652d2"/></linearGradient>';
 const glyph=(scale)=>`<g transform="translate(${54-12*scale} ${54-12*scale}) scale(${scale})" fill="none" stroke="#fff" stroke-width="${1.6}" stroke-linejoin="round" stroke-linecap="round">${BOX}</g>`;

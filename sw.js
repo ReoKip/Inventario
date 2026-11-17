@@ -1,6 +1,6 @@
 // Permite usar la app web sin conexión una vez instalada.
 // La página se pide primero a la red (para recibir actualizaciones) y, sin conexión, se usa la copia guardada.
-const CACHE = "stocky-v2";
+const CACHE = "stok-v3";
 const SHELL = ["./", "./inventario.html", "./manifest.webmanifest", "./icons/apple-touch-icon.png", "./icons/icon-192.png", "./icons/icon-512.png"];
 
 self.addEventListener("install", e => {

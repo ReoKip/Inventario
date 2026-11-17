@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<title>Stocky · Inventario</title>
+<title>Stok · Inventario</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Stocky">
+<meta name="apple-mobile-web-app-title" content="Stok">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#ece3ea">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -474,10 +474,10 @@ const opts=(list,val)=>list.map(o=>'<option value="'+o[0]+'"'+(o[0]===val?" sele
 /* ---------- guardado ---------- */
 function buildDoc(){
   const json=JSON.stringify(state).replace(/</g,"\\u003c");
-  return '<!DOCTYPE html>\n<html lang="es">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">\n<title>Stocky · Inventario</title>\n<link rel="preconnect" href="https://fonts.googleapis.com">\n<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">\n<link rel="stylesheet" href="app.css">\n</head>\n<body>\n<script id="app-state" type="application/json">'+json+'<\/script>\n<div id="root"></div>\n<script src="app.js"><\/script>\n</body>\n</html>\n';
+  return '<!DOCTYPE html>\n<html lang="es">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">\n<title>Stok · Inventario</title>\n<link rel="preconnect" href="https://fonts.googleapis.com">\n<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">\n<link rel="stylesheet" href="app.css">\n</head>\n<body>\n<script id="app-state" type="application/json">'+json+'<\/script>\n<div id="root"></div>\n<script src="app.js"><\/script>\n</body>\n</html>\n';
 }
 /* En Claude, guardar recarga la página: se recuerda la pantalla para volver al mismo lugar. */
-const UI_KEY="stocky-ui";
+const UI_KEY="stok-ui";
 function saveUI(){ try{ sessionStorage.setItem(UI_KEY,JSON.stringify({t:Date.now(),tab:ui.tab,view:ui.view,q:ui.q,cat:ui.cat,size:ui.size,use:ui.use,sup:ui.sup,lowOnly:ui.lowOnly,sort:ui.sort,per:ui.per,mtype:ui.mtype,mq:ui.mq,y:window.scrollY||0,
   buy:ui.modal&&ui.modal.kind==="buy"?{tab:ui.modal.tab||"list",q:ui.modal.q||"",low:!!ui.modal.low,sy:(document.querySelector(".sheet")||{}).scrollTop||0}:null,
   toast:lastToast&&Date.now()-lastToast.t<2500?lastToast.msg:""})); }catch(e){} }
@@ -1182,7 +1182,7 @@ function renderOnb(){
   let h='<div class="onb"><div class="onb-top"><div class="dots">'+o.seq.map((s,i)=>'<i class="'+(i===o.i?"on":"")+'"></i>').join("")+'</div>'
     +(o.kind==="full"&&inGuide?'<button class="skip" data-onb="skip">Saltar guía</button>':o.kind!=="full"?'<button class="skip" data-onb="close">Cerrar</button>':"")+'</div><div class="onb-body">';
   if(step===0){
-    h+='<div class="onb-hero">'+LOGO_SVG(40)+'</div><h2>Bienvenido a <span class="grad">Stocky</span></h2>'
+    h+='<div class="onb-hero">'+LOGO_SVG(40)+'</div><h2>Bienvenido a <span class="grad">Stok</span></h2>'
       +'<p class="lead">Tu inventario en el bolsillo. Lleva el control de tus productos, ventas y stock desde el celular. Te haremos un par de preguntas para dejar la app a tu medida y luego te mostramos cómo usarla. Toma menos de un minuto.</p>'
       +'<div class="tips">'+tip(HERO.box.replace(/38/g,"18"),"Tus productos","Con foto, precio, costo y stock.")+tip(HERO.cart.replace(/38/g,"18"),"Ventas y entradas","Registra cada venta o compra en segundos.")+tip(HERO.chart.replace(/38/g,"18"),"Resumen claro","Cuánto vendiste, tu margen y qué reponer.")+'</div>';
   } else if(step===1){

@@ -178,7 +178,7 @@ public class MainActivity extends Activity {
                 @Override
                 public void run() {
                     ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-                    cm.setPrimaryClip(ClipData.newPlainText("Stocky", text));
+                    cm.setPrimaryClip(ClipData.newPlainText("Stok", text));
                 }
             });
         }

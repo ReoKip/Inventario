@@ -1,6 +1,6 @@
 {
-  "name": "Stocky · Inventario",
-  "short_name": "Stocky",
+  "name": "Stok · Inventario",
+  "short_name": "Stok",
   "description": "Inventario de productos, ventas y stock de tu tienda.",
   "lang": "es",
   "start_url": "./inventario.html",
