@@ -163,7 +163,8 @@ h2.sec{font-size:15px;margin:18px 2px 8px}
 .wipe{margin-top:26px;text-align:left;padding-right:150px}
 .wipe .btn.block{width:auto;min-width:150px}
 .wipe .hint{margin-top:6px}
-.tools{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.tools .btn{white-space:normal;line-height:1.2;padding:8px 10px;min-width:0}
 .sheet-bg{position:fixed;inset:0;background:rgba(2,4,14,.7);z-index:20;display:flex;align-items:flex-end;justify-content:center}
 .sheet{background:var(--sheet);border:1px solid var(--line);width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:22px 22px 0 0;padding:10px 18px calc(18px + var(--sab));overscroll-behavior:contain}
 .sheet::before{content:"";display:block;width:40px;height:4px;border-radius:9px;background:var(--handle);margin:0 auto 14px}
@@ -202,7 +203,8 @@ h2.sec{font-size:15px;margin:18px 2px 8px}
 .total b{font-size:20px;color:var(--accent-text)}
 .cnt{width:84px!important;text-align:center;padding:9px 6px!important}
 .bar{height:6px;border-radius:9px;background:var(--chip);margin-top:6px;overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--g1),var(--g2))}
-.stack{display:grid;gap:10px}
+.stack{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.stack .btn{white-space:normal;line-height:1.2;min-width:0}
 textarea.mono{font-family:ui-monospace,Menlo,monospace;font-size:13px}
 /* ---- bienvenida ---- */
 .onb{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;max-width:560px;margin:0 auto;padding:calc(var(--sat) + 18px) 20px calc(var(--sab) + 20px)}
@@ -323,6 +325,21 @@ textarea.mono{font-family:ui-monospace,Menlo,monospace;font-size:13px}
 .xrow .xg input{padding:8px 10px;font-size:15px}
 .xrow .xg small{display:block;font-size:12px;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .aibtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:8px}
+.helpb{display:flex;align-items:center;justify-content:center;gap:8px}
+.faq details{border-bottom:1px solid var(--line)}.faq details:last-child{border-bottom:none}
+.faq summary{list-style:none;cursor:pointer;padding:14px 32px 14px 14px;font-weight:600;position:relative}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"";position:absolute;right:14px;top:50%;width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:translateY(-70%) rotate(45deg);transition:transform .2s}
+.faq details[open] summary::after{transform:translateY(-30%) rotate(-135deg)}
+.faq details p{margin:0;padding:0 14px 14px;color:var(--muted);font-size:14px;line-height:1.5}
+.chat{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;min-height:120px}
+.bub{max-width:86%;padding:10px 13px;border-radius:16px;font-size:15px;line-height:1.45;white-space:pre-wrap;word-wrap:break-word}
+.bub.me{align-self:flex-end;background:var(--accent);color:var(--accent-ink);border-bottom-right-radius:5px}
+.bub.ai{align-self:flex-start;background:var(--card);border:1px solid var(--line);border-bottom-left-radius:5px}
+.bub.ai.wait{color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.chips button{border:1px solid var(--line);background:var(--field);border-radius:99px;padding:8px 12px;font-size:13px;font-weight:600;text-align:left}
+.askrow{display:flex;gap:8px}.askrow input{flex:1;min-width:0}.askrow .btn{flex:0 0 auto}
 .sumcard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px 14px;margin-bottom:12px}
 
 </style>
@@ -341,6 +358,9 @@ const RLBL={ajuste:"Ajuste",conteo:"Toma de inventario"}; REASONS_OUT.concat(REA
 const PLBL={}; PAYS.forEach(r=>PLBL[r[0]]=r[1]);
 const LOSS={merma:1,robo:1,regalo:1,interno:1};
 const IVA=0.19;
+const APP_VERSION="0.1";
+/* A dónde llegan las sugerencias. Completar con el correo y/o WhatsApp (solo números, con código de país). */
+const SUPPORT={email:"",whatsapp:""};
 /* Dónde corre la app: dentro de Claude (marco), en la APK de Android, o como página web propia. */
 const IN_ANDROID=!!window.AndroidApp;
 const IN_WEB=!IN_ANDROID&&(function(){ try{ return window.top===window; }catch(e){ return false; } })();
@@ -704,6 +724,49 @@ let buyT=null;
 function buyAdd(pid,size,qty){ const ex=inBuy(pid,size); if(ex) return false; state.buy.push({pid:pid,size:size||"",qty:Math.max(1,qty||1)}); return true; }
 function buySuggested(){ let n=0; needList().forEach(it=>{ if(buyAdd(it.p.id,it.size,sugQty(it))) n++; }); return n; }
 function buyItems(){ return state.buy.map((b,i)=>{ const p=prod(b.pid), v=b.size?variant(p,b.size):null; return {i:i,p:p,size:b.size,qty:b.qty,q:v?v.q:p.stock,min:v?vmin(p,v):pmin(p)}; }); }
+function faqList(){
+  const v=vlow(), vs=vslow();
+  return [
+    ["¿Cómo agrego un producto?","En Productos toca “Nuevo” (abajo a la derecha). Escribe el nombre, pon el precio y el costo, y si quieres una foto. Si viene en varias "+vs+", agrégalas en la misma pantalla, cada una con su stock."],
+    ["¿Cómo vendo?","Toca “Vender” en el producto. Si tiene "+vs+", puedes elegir varias a la vez con − y +. Elige el medio de pago y, si quieres, un descuento. El stock baja solo."],
+    ["Me equivoqué en una venta o entrada, ¿cómo la deshago?","Ve a Movimientos, toca el movimiento y elige “Anular movimiento”. El stock vuelve a como estaba y deja de contar en los reportes."],
+    ["¿Cómo ingreso mercadería que llega en cajas?","Edita el producto y completa “Unidades por caja”. Después, al tocar “+ Entrada”, elige “Cajas” y escribe cuántas cajas llegaron: la app calcula las unidades."],
+    ["¿Cómo cambio el precio rápido?","En la vista de tarjetas toca el precio (tiene un lápiz). Cambias precio y costo y ves al tiro cuánto ganas por unidad."],
+    ["¿Cómo funciona la lista de compra?","Está en Resumen → Lista de compra. Puedes agregar cualquier producto del inventario, cambiar cuánto pedir y copiar la lista para mandarla por WhatsApp. Cuando llegue el pedido, “Recibir pedido” lo suma todo al stock."],
+    ["¿Cómo cambio cuándo me avisa de stock bajo?","En Ajustes → Aviso de stock bajo eliges desde cuántas unidades avisar. Cada producto también puede tener su propio mínimo (y cada "+v+" el suyo)."],
+    ["¿Cómo paso mis productos desde Excel?","En Ajustes → Importar archivo Excel. La app reconoce las columnas; antes de importar puedes cambiar el nombre y poner foto a cada producto."],
+    ["¿Qué es el cierre de caja?","En Resumen ves cuánto vendiste hoy (o en 7 días, el mes o todo) separado por medio de pago: efectivo, débito, crédito y transferencia. Sirve para cuadrar la caja al final del día."],
+    ["¿Dónde se guardan mis datos? ¿Cómo no perderlos?","Por ahora se guardan en este dispositivo. Descarga un respaldo cada cierto tiempo en Ajustes → Descargar respaldo y guárdalo en tu correo o en la nube."],
+    ["¿Cómo paso mi inventario a otro teléfono?","En el teléfono actual: Ajustes → Descargar respaldo. En el nuevo: Ajustes → Restaurar respaldo y eliges ese archivo."],
+    ["¿Cómo la instalo en el iPhone?","Abre reokip.github.io/Inventario en Safari, toca Compartir (el cuadro con flecha) y luego “Agregar a pantalla de inicio”."]
+  ];
+}
+function platformName(){ return IN_ANDROID?"Android (APK)":IN_WEB?(INSTALLED?"App instalada":"Navegador"):"Claude"; }
+function feedbackText(m){
+  const t={sug:"Sugerencia",prob:"Problema",preg:"Pregunta"}[m.type||"sug"], st=STYPES[state.setup.type];
+  return "Stok — "+t+"\n\n"+(m.text||"").trim()+"\n\n— "+((m.name!=null?m.name:state.setup.owner||"").trim()||"Sin nombre")+"\nTienda: "+(st?st.n:"sin tipo")+" · "+state.products.length+" productos\nVersión "+APP_VERSION+" · "+platformName()+"\n"+navigator.userAgent.replace(/\s+/g," ").slice(0,160);
+}
+function assistContext(){
+  const st=STYPES[state.setup.type];
+  return "Eres el asistente de ayuda de Stok, una app de inventario para tiendas pequeñas en Chile (versión "+APP_VERSION+", usada desde "+platformName()+"). "
+    +"Responde en español de Chile, breve y claro (máximo 6 líneas), con pasos concretos indicando la pestaña o botón exacto. Solo ayudas a usar Stok; si te piden otra cosa, dilo amablemente. "
+    +"Si el usuario describe un error o una idea, agradécele y sugiere usar Ajustes → “Enviar sugerencia o reportar un problema”. No inventes funciones que no estén en esta lista.\n\n"
+    +"Pestañas: Productos (buscar, filtros, vistas tarjetas/lista/galería, botón Nuevo, Vender, + Entrada, precio con lápiz), Movimientos (historial, anular), Resumen (ventas, margen, IVA, cierre de caja por medio de pago, más vendidos, pérdidas, por reponer, lista de compra), Ajustes (apariencia claro/oscuro, tienda, aviso de stock bajo, toma de inventario, Excel, respaldo, ayuda).\n\n"
+    +"Preguntas frecuentes:\n"+faqList().map(q=>"- "+q[0]+" "+q[1]).join("\n")+"\n\n"
+    +"Datos de esta tienda: tipo "+(st?st.n:"no elegido")+"; las variantes se llaman “"+VT().vs+"”; "+state.products.length+" productos; aviso de stock bajo: "+(state.setup.alert||"según cada producto")+".";
+}
+function assistSend(q){
+  const m=ui.modal; if(!m||m.kind!=="assist"||m.busy||!sampleApi) return;
+  const inp=$("asq"); q=String(q!=null?q:(inp?inp.value:"")).trim(); if(!q) return;
+  m.msgs.push({role:"user",content:q}); m.msgs.push({role:"assistant",content:"",wait:true}); m.busy=true; render();
+  const sh=root.querySelector(".sheet"); if(sh) sh.scrollTop=sh.scrollHeight;
+  const hist=m.msgs.filter(x=>!x.wait).map((x,i)=>({role:x.role,content:i===0?assistContext()+"\n\nPregunta del usuario: "+x.content:x.content}));
+  const ans=m.msgs[m.msgs.length-1];
+  Promise.resolve(sampleApi(hist,{modelTier:"quick",cache:false,onText:o=>{ ans.content=o.text; ans.wait=false; const b=root.querySelectorAll(".bub.ai"); const last=b[b.length-1]; if(last&&ui.modal===m){ last.textContent=o.text; last.classList.remove("wait"); } }}))
+    .then(r=>{ ans.content=(r&&r.text)||ans.content||"No tengo una respuesta para eso."; ans.wait=false; })
+    .catch(e=>{ const c=(e&&e.code)||""; ans.wait=false; ans.content=c==="not_granted"?"No se dio permiso para usar el asistente.":c==="rate_limited"?"Hay muchas consultas seguidas. Espera un momento y vuelve a preguntar.":"No pude responder ahora. Intenta de nuevo."; })
+    .then(()=>{ m.busy=false; if(ui.modal===m){ render(); const s2=root.querySelector(".sheet"); if(s2) s2.scrollTop=s2.scrollHeight; const i2=$("asq"); if(i2) i2.focus(); } });
+}
 function renderBuy(m){
   const tabs='<div class="seg" style="margin-bottom:12px"><button type="button" data-btab="list" class="'+(m.tab!=="add"?"on":"")+'">Mi lista ('+state.buy.length+')</button><button type="button" data-btab="add" class="'+(m.tab==="add"?"on":"")+'">Agregar productos</button></div>';
   let h='<h2>Lista de compra</h2>'+tabs;
@@ -1076,6 +1139,11 @@ function render(){
       +'<div class="hint" style="margin-top:8px">El Excel exportado incluye una hoja de productos y otra con todos los movimientos.</div>';
     h+='<h2 class="sec">Respaldo</h2><div class="tools"><button class="btn" data-act="backup">Descargar respaldo</button>'+(ro?"":'<label class="btn filebtn">Restaurar respaldo<input type="file" id="rfile" accept=".json,application/json,text/plain"></label>')+'</div>'
       +'<div class="hint" style="margin-top:8px">El respaldo guarda todo: productos, fotos y movimientos. Conviene descargarlo cada cierto tiempo.</div>';
+    h+='<h2 class="sec">Ayuda y sugerencias</h2><div class="stack">'
+      +(sampleApi?'<button class="btn primary helpb" data-act="assist">'+IC_SPARK+' Pregúntale al asistente</button>':"")
+      +'<div class="tools"><button class="btn" data-act="faq">Preguntas frecuentes</button><button class="btn" data-act="guide">Guía de uso</button></div>'
+      +'<button class="btn" data-act="feedback">Enviar sugerencia o reportar un problema</button></div>'
+      +'<div class="hint" style="margin-top:10px;text-align:center">Stok '+APP_VERSION+' · '+esc(platformName())+'</div>';
   }
   h+='</div>'+fab+'</div>';
   const nb=(t,icon,label,extra)=>'<button data-tab="'+t+'" class="'+(ui.tab===t?(anim?"on pop":"on"):"")+'">'+icon+label+(extra||"")+'</button>';
@@ -1345,6 +1413,31 @@ function renderModal(){
       +'<div class="field"><label>Costo ($)</label><input type="text" inputmode="numeric" name="cost" id="pcost" value="'+(pp.cost||"")+'"></div></div>'
       +'<div class="total"><span>Ganancia por unidad</span><b id="pmargin">'+marginTxt(pp.price,pp.cost)+'</b></div>'
       +'<div class="mfoot"><button type="button" class="btn" data-act="close">Cancelar</button><button class="btn primary" type="submit">Guardar</button></div></form>';
+  } else if(m.kind==="faq"){
+    h+='<h2>Preguntas frecuentes</h2><div class="list faq" style="margin-bottom:12px">'+faqList().map(q=>'<details><summary>'+esc(q[0])+'</summary><p>'+esc(q[1])+'</p></details>').join("")+'</div>'
+      +'<div class="hint" style="margin-bottom:12px">¿No encontraste lo que buscabas?</div>'
+      +'<div class="stack">'+(sampleApi?'<button class="btn primary helpb" data-act="assist">'+IC_SPARK+' Pregúntale al asistente</button>':"")+'<button class="btn" data-act="feedback" data-fbt="preg">Envíanos tu pregunta</button><button class="btn" data-act="close">Cerrar</button></div>';
+  } else if(m.kind==="assist"){
+    h+='<h2 style="display:flex;align-items:center;gap:8px">'+IC_SPARK+' Asistente de Stok</h2>';
+    if(!m.msgs.length) h+='<p class="hint" style="font-size:14px;margin-top:-6px">Pregúntame cómo hacer algo en la app. Por ejemplo:</p><div class="chips">'
+      +["¿Cómo vendo dos números distintos a la vez?","¿Cómo anulo una venta?","¿Cómo ingreso una caja de 12?","¿Cómo paso mi inventario a otro teléfono?"].map(x=>'<button type="button" data-q="'+esc(x)+'">'+esc(x)+'</button>').join("")+'</div>';
+    h+='<div class="chat">'+m.msgs.map(x=>'<div class="bub '+(x.role==="user"?"me":"ai")+(x.wait?" wait":"")+'">'+esc(x.wait?"Pensando…":x.content)+'</div>').join("")+'</div>'
+      +'<form id="asf" class="askrow"><input type="text" id="asq" placeholder="Escribe tu pregunta" autocomplete="off" maxlength="400"'+(m.busy?" disabled":"")+'><button class="btn primary" type="submit"'+(m.busy?" disabled":"")+'>Enviar</button></form>'
+      +'<div class="hint" style="margin-top:10px">Las respuestas las genera Claude y pueden equivocarse. ¿Encontraste un error? <button class="linkb" data-act="feedback" data-fbt="prob">Repórtalo aquí</button>.</div>'
+      +'<div class="mfoot" style="margin-top:12px"><button class="btn" data-act="close">Cerrar</button></div>';
+  } else if(m.kind==="feedback"){
+    const ty=m.type||"sug";
+    h+='<h2>'+(ty==="prob"?"Reportar un problema":ty==="preg"?"Enviar una pregunta":"Enviar una sugerencia")+'</h2>'
+      +'<div class="seg"><button type="button" data-fbt="sug" class="'+(ty==="sug"?"on":"")+'">Sugerencia</button><button type="button" data-fbt="prob" class="'+(ty==="prob"?"on":"")+'">Problema</button><button type="button" data-fbt="preg" class="'+(ty==="preg"?"on":"")+'">Pregunta</button></div>'
+      +'<div class="field"><label>'+(ty==="prob"?"¿Qué pasó? Cuéntanos qué estabas haciendo":ty==="preg"?"¿Qué quieres saber?":"¿Qué te gustaría que tuviera o cambiara la app?")+'</label><textarea id="fbtext" rows="5" maxlength="2000" placeholder="'+(ty==="prob"?"Ej.: al vender dos números, el total salió mal…":"Escribe aquí…")+'">'+esc(m.text||"")+'</textarea></div>'
+      +'<div class="field"><label>Tu nombre (opcional)</label><input type="text" id="fbname" value="'+esc(m.name!=null?m.name:(state.setup.owner||""))+'" autocomplete="name" maxlength="60"></div>'
+      +'<div class="hint" style="margin-bottom:12px">Se agrega automáticamente la versión de la app y el tipo de dispositivo, para entender mejor tu mensaje. No se envían tus productos.</div>'
+      +(m.err?'<div class="err">'+esc(m.err)+'</div>':"")
+      +'<div class="stack">'
+      +(SUPPORT.whatsapp?'<button class="btn primary" data-act="fb-wa">Enviar por WhatsApp</button>':"")
+      +(SUPPORT.email?'<button class="btn'+(SUPPORT.whatsapp?"":" primary")+'" data-act="fb-mail">Enviar por correo</button>':"")
+      +'<button class="btn'+(SUPPORT.whatsapp||SUPPORT.email?"":" primary")+'" data-act="fb-copy">Copiar mensaje</button>'
+      +'<button class="btn" data-act="close">Cancelar</button></div>';
   } else if(m.kind==="alert"){
     h+='<h2>Aviso de stock bajo</h2><p class="hint" style="font-size:14px;margin-top:-6px">La app marca un producto como <b>stock bajo</b> y lo pone en la lista de compra cuando quedan esta cantidad o menos.</p>'
       +'<form id="f"><div class="field"><label>Avisar cuando queden</label><div class="stepper"><button type="button" data-astep="-1" aria-label="Restar">−</button><input type="number" inputmode="numeric" id="alertn" min="0" step="1" value="'+(state.setup.alert||0)+'"><button type="button" data-astep="1" aria-label="Sumar">+</button></div></div>'
@@ -1393,7 +1486,7 @@ function copyText(text,okMsg){
 
 /* ---------- eventos ---------- */
 root.addEventListener("click",e=>{
-  const t=e.target.closest("[data-act],[data-tab],[data-mt],[data-mtype],[data-step],[data-theme-set],[data-msize],[data-per],[data-onb],[data-otype],[data-view],[data-bybox],[data-vstep],[data-btab],[data-bstep],[data-astep]"); if(!t||busy) return;
+  const t=e.target.closest("[data-act],[data-tab],[data-mt],[data-mtype],[data-step],[data-theme-set],[data-msize],[data-per],[data-onb],[data-otype],[data-view],[data-bybox],[data-vstep],[data-btab],[data-bstep],[data-astep],[data-q],[data-fbt]"); if(!t||busy) return;
   const d=t.dataset;
   if(d.view){ ui.view=d.view; try{ localStorage.setItem(VW_KEY,d.view); }catch(er){} render(); return; }
   if(d.onb){ const o=ui.onb; if(!o) return;
@@ -1410,6 +1503,8 @@ root.addEventListener("click",e=>{
   if(d.mtype!==undefined){ ui.mtype=d.mtype; render(); return; }
   if(d.mt){ syncMove(); const m=ui.modal, mp=prod(m.id); if(m.type!==d.mt){ m.type=d.mt; m.reason=d.mt==="in"?"compra":d.mt==="out"?"venta":"ajuste"; m.qty=d.mt==="adj"?null:(m.qty==null?"1":m.qty); if(d.mt!=="in") m.byBox=false;
       if(mp&&mp.sizes.length){ if(d.mt==="adj"){ const ks=m.qs?Object.keys(m.qs).filter(k=>numPlain(m.qs[k])>0):[]; if(ks.length) m.size=ks[0]; m.qs=null; } else if(!m.qs){ m.qs={}; m.qs[m.size]="1"; } } } m.err=null; render(); return; }
+  if(d.q&&ui.modal&&ui.modal.kind==="assist"){ assistSend(d.q); return; }
+  if(d.fbt&&!d.act&&ui.modal&&ui.modal.kind==="feedback"){ ui.modal.type=d.fbt; ui.modal.err=null; render(); return; }
   if(d.btab){ ui.modal.tab=d.btab; ui.modal.confirmRecv=false; render(); const sh=root.querySelector(".sheet"); if(sh) sh.scrollTop=0; return; }
   if(d.bstep){ const it=state.buy[Number(d.i)]; if(it){ it.qty=Math.max(1,it.qty+Number(d.bstep)); const inp=root.querySelector('.bqi[data-i="'+d.i+'"]'); if(inp) inp.value=it.qty; clearTimeout(buyT); buyT=setTimeout(()=>commit(),700); } return; }
   if(d.astep){ const i=$("alertn"); if(i) i.value=Math.max(0,Math.round(numPlain(i.value))+Number(d.astep)); return; }
@@ -1447,6 +1542,17 @@ root.addEventListener("click",e=>{
   else if(a==="profile") startOnb("profile");
   else if(a==="install"&&installPrompt){ const ip=installPrompt; installPrompt=null; try{ ip.prompt(); Promise.resolve(ip.userChoice).then(()=>render(),()=>render()); }catch(er){ render(); } }
   else if(a==="guide") startOnb("guide");
+  else if(a==="faq"){ ui.modal={kind:"faq"}; render(); }
+  else if(a==="assist"){ if(sampleApi){ ui.modal={kind:"assist",msgs:[],busy:false}; render(); setTimeout(()=>{ const i=$("asq"); if(i) i.focus(); },250); } }
+  else if(a==="feedback"){ ui.modal={kind:"feedback",type:d.fbt||"sug",text:"",name:null}; render(); }
+  else if(a==="fb-copy"||a==="fb-mail"||a==="fb-wa"){
+    const m=ui.modal; if(!(m.text||"").trim()){ m.err="Escribe tu mensaje antes de enviarlo."; render(); const tx=$("fbtext"); if(tx) tx.focus(); return; }
+    const msg=feedbackText(m);
+    if(a==="fb-copy"){ copyText(msg,"Mensaje copiado"); return; }
+    const url=a==="fb-wa"?"https://wa.me/"+SUPPORT.whatsapp.replace(/\D/g,"")+"?text="+encodeURIComponent(msg):"mailto:"+SUPPORT.email+"?subject="+encodeURIComponent("Stok — "+({sug:"Sugerencia",prob:"Problema",preg:"Pregunta"}[m.type||"sug"]))+"&body="+encodeURIComponent(msg);
+    const l=document.createElement("a"); l.href=url; l.target="_blank"; l.rel="noopener"; document.body.appendChild(l); l.click(); l.remove();
+    ui.modal=null; render(); toast("¡Gracias! Se abrió "+(a==="fb-wa"?"WhatsApp":"tu correo")+" con el mensaje listo.");
+  }
   else if(a==="samples"){ const n=addSamples(state.setup.type||"otro"); commit(); toast(n?n+" productos de ejemplo agregados":"Los ejemplos ya estaban agregados"); }
   else if(a==="ximport"){
     const xm=ui.modal, ed=xm.edit||{};
@@ -1495,6 +1601,7 @@ root.addEventListener("click",e=>{
 root.addEventListener("submit",e=>{
   e.preventDefault(); if(busy) return;
   if(e.target.id==="onbf"){ onbNext(); return; }
+  if(e.target.id==="asf"){ assistSend(); return; }
   const f=e.target, m=ui.modal; let err=null;
   if(m.kind==="product"){
     const r=readProductForm(f,m.id);
@@ -1536,6 +1643,7 @@ root.addEventListener("input",e=>{
   else if(id==="mq"){ ui.mq=e.target.value; ui.partial="page"; render(); }
   else if(id==="qty"||id==="mprice"||id==="mdisc"||e.target.classList.contains("vq")){ syncMove(); updMoveTotals(); }
   else if((id==="pprice"||id==="pcost")&&ui.modal){ const pm=$("pmargin"); if(pm) pm.textContent=marginTxt(num($("pprice").value),num($("pcost").value)); }
+  else if((id==="fbtext"||id==="fbname")&&ui.modal&&ui.modal.kind==="feedback"){ if(id==="fbtext") ui.modal.text=e.target.value; else ui.modal.name=e.target.value; }
   else if(id==="bsearch"&&ui.modal){ ui.modal.q=e.target.value; ui.partial="sheet"; render(); }
   else if(e.target.classList.contains("xname")&&ui.modal&&ui.modal.kind==="xprev"){ const k=e.target.getAttribute("data-k"); (ui.modal.edit[k]=ui.modal.edit[k]||{}).name=e.target.value; }
   else if(e.target.classList.contains("bqi")&&ui.modal){ const it=state.buy[Number(e.target.getAttribute("data-i"))]; if(it){ it.qty=Math.max(1,Math.round(numPlain(e.target.value))||1); clearTimeout(buyT); buyT=setTimeout(()=>commit(),700); } }
@@ -1652,7 +1760,7 @@ if(AND){
 const use=n=>cu?Promise.resolve(window.claude.use(n)).catch(()=>null):Promise.resolve(null);
 use("user").then(api=>{ if(!api||typeof api.me!=="function") return; userApi=api; return Promise.resolve(api.me()).then(me=>{ acct=me; if(ui.onb&&!ui.onb.owner&&me&&me.name&&ui.onb.seq[ui.onb.i]<=1){ ui.onb.owner=me.name; render(); } else if(ui.tab==="set"&&!ui.onb) render(); }); }).catch(()=>{});
 use("assets").then(api=>{ if(api&&typeof api.upload==="function") assetsApi=api; });
-use("sample").then(api=>{ if(!api||typeof api.json!=="function") return; sampleApi=api; Promise.resolve(api.limits()).then(l=>{ aiImages=!!(l&&l.images); if(aiImages&&ui.modal&&ui.modal.kind==="product") render(); }).catch(()=>{}); });
+use("sample").then(api=>{ if(!api||typeof api.json!=="function") return; sampleApi=api; if(ui.tab==="set"&&!ui.modal) render(); Promise.resolve(api.limits()).then(l=>{ aiImages=!!(l&&l.images); if(aiImages&&ui.modal&&ui.modal.kind==="product") render(); }).catch(()=>{}); });
 use("downloads").then(api=>{ if(api&&typeof api.save==="function") dlApi=api; });
 use("artifact").then(api=>{
   if(api&&typeof api.publish==="function"){ artifactApi=api; mode="shared"; }

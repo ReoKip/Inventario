@@ -12,3 +12,7 @@ ventas, entradas, cierre de caja, lista de compra, toma de inventario, Excel y r
 
 Archivos de la app web instalable: `manifest.webmanifest`, `sw.js` (uso sin conexión), `icons/` e `index.html`
 (redirige a `inventario.html`).
+
+## En camino
+
+- [Plan para agregar cuentas](docs/cuentas.md): entrar con correo o Google, datos en la nube y varios teléfonos por tienda.
