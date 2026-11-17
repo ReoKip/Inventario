@@ -18,7 +18,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # GitHub solo deja publicar desde main. Si el cambio llegó a beta, se le pide a main
+  # que vuelva a armar y publicar el sitio (que incluye la beta).
+  pedir-publicacion:
+    if: github.ref == 'refs/heads/beta'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - run: gh workflow run pages.yml --ref main -R "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ github.token }}
   deploy:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
