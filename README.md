@@ -1,6 +1,6 @@
 # Stok
 
-**Stok** (antes "Inventario") es una app para llevar el inventario de una tienda: productos con fotos y variantes (tallas, números, formatos…),
+**Stok** es una app para llevar el inventario de una tienda: productos con fotos y variantes (tallas, números, formatos…),
 ventas, entradas, cierre de caja, lista de compra, toma de inventario, Excel y respaldos.
 
 - **App web (iPhone, Android o computador):** **https://reokip.github.io/Inventario/**
