@@ -227,6 +227,15 @@ textarea.mono{font-family:ui-monospace,Menlo,monospace;font-size:13px}
 .gtile .gp{display:flex;justify-content:space-between;align-items:baseline;gap:6px;font-size:13px;margin-top:2px}
 .gtile .gp b{color:var(--pink)}.gtile .gp span{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .gtile .qbtn{margin:8px 10px 10px;height:38px;min-width:0}
+.buyinfo{background:var(--accent-soft);border-radius:14px;padding:12px 14px;font-size:14px;line-height:1.45;margin-bottom:12px}
+.buyinfo b{color:var(--accent-text)}
+.buyinfo ol{margin:6px 0 0;padding-left:18px}.buyinfo li{margin:3px 0}
+.buysup{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin:16px 2px 6px}
+.buysup b{font-size:15px}.buysup span{font-size:13px;color:var(--muted);white-space:nowrap}
+.buyrow .t{white-space:normal}.buyrow .tag{white-space:nowrap}
+.buyq{flex:0 0 auto;text-align:center;background:var(--accent);color:var(--accent-ink);border-radius:12px;padding:6px 10px;min-width:64px;line-height:1.1}
+.buyq small{display:block;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;opacity:.8}
+.buyq b{font-size:18px;font-variant-numeric:tabular-nums}
 .sumcard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px 14px;margin-bottom:12px}
 
 </style>
@@ -541,6 +550,11 @@ function needList(){
   });
   return out;
 }
+const sugQty=it=>Math.max(1,(it.min>0?it.min*2:1)-it.q);
+function buyGroups(){
+  const by={}; needList().forEach(it=>{ const k=it.p.sup||"Sin proveedor"; (by[k]=by[k]||[]).push(it); });
+  return Object.keys(by).sort(cmp.compare).map(k=>({sup:k,items:by[k],cost:by[k].reduce((a,it)=>a+sugQty(it)*it.p.cost,0)}));
+}
 function buyText(){
   const items=needList(), by={};
   items.forEach(it=>{ const k=it.p.sup||"Sin proveedor"; (by[k]=by[k]||[]).push(it); });
@@ -548,7 +562,7 @@ function buyText(){
   let t="Lista de compra — "+state.name+" ("+d+")\n";
   Object.keys(by).sort(cmp.compare).forEach(k=>{
     t+="\n"+k+"\n";
-    by[k].forEach(it=>{ const sug=Math.max(1,(it.min>0?it.min*2:1)-it.q); t+="- "+it.p.name+(it.p.sku?" ("+it.p.sku+")":"")+(it.size?" "+vlow()+" "+it.size:"")+": quedan "+nf.format(it.q)+(it.min>0?", mínimo "+nf.format(it.min):"")+" → pedir "+nf.format(sug)+"\n"; });
+    by[k].forEach(it=>{ const sug=sugQty(it); t+="- "+it.p.name+(it.p.sku?" ("+it.p.sku+")":"")+(it.size?" "+vlow()+" "+it.size:"")+": quedan "+nf.format(it.q)+(it.min>0?", mínimo "+nf.format(it.min):"")+" → pedir "+nf.format(sug)+"\n"; });
   });
   return items.length?t:"";
 }
@@ -1083,6 +1097,26 @@ function renderModal(){
       +'<div class="mfoot" style="margin-top:14px"><button type="button" class="btn" data-act="close">Cancelar</button><button class="btn primary" type="submit">Importar</button></div></form>';
   } else if(m.kind==="text"){
     h+='<h2>'+esc(m.title)+'</h2><p class="hint" style="font-size:14px;margin-top:-6px">'+esc(m.note||"Mantén presionado el texto, elige “Seleccionar todo” y cópialo.")+'</p><textarea class="mono" rows="10" readonly id="txtbox">'+esc(m.text)+'</textarea><div class="mfoot" style="margin-top:12px"><button class="btn" data-act="close">Cerrar</button><button class="btn primary" data-act="copy-text">Copiar</button></div>';
+  } else if(m.kind==="buy"){
+    const gs=buyGroups(), n=gs.reduce((a,g)=>a+g.items.length,0), tot=gs.reduce((a,g)=>a+g.cost,0);
+    h+='<h2>Lista de compra</h2>';
+    if(!n) h+='<p>No hay nada por reponer: todos tus productos están sobre su stock mínimo.</p><div class="mfoot"><button class="btn" data-act="close">Cerrar</button></div>';
+    else {
+      h+='<div class="buyinfo"><b>¿Qué es esta lista?</b> Son los productos que llegaron a su <b>stock mínimo</b> o quedaron por debajo, agrupados por proveedor para que hagas cada pedido de una vez.'
+        +'<ol><li><b>Quedan</b>: lo que tienes hoy.</li><li><b>Mínimo</b>: la alerta que pusiste en el producto.</li><li><b>Pedir</b>: una sugerencia para volver a tener el doble del mínimo. Puedes cambiarla al hacer tu pedido.</li></ol></div>'
+        +'<div class="kpis" style="margin:0 0 4px"><div class="kpi"><div class="l">Por reponer</div><div class="v">'+nf.format(n)+'</div></div><div class="kpi"><div class="l">Costo estimado</div><div class="v">'+money(tot)+'</div></div></div>';
+      gs.forEach(g=>{
+        h+='<div class="buysup"><b>'+esc(g.sup)+'</b><span>'+money(g.cost)+'</span></div><div class="list">';
+        g.items.forEach(it=>{ const q=sugQty(it);
+          h+='<div class="row buyrow">'+thumb(it.p,"mini")+'<div class="grow"><div class="t">'+esc(it.p.name)+(it.size?' <span class="tag size">'+esc(VT().v)+' '+esc(it.size)+'</span>':"")+'</div>'
+            +'<div class="s">Quedan <b>'+nf.format(it.q)+'</b>'+(it.min>0?' · mínimo '+nf.format(it.min):"")+(it.p.cost?' · '+money(it.p.cost)+' c/u':"")+'</div></div>'
+            +'<div class="buyq"><small>Pedir</small><b>'+nf.format(q)+'</b></div></div>';
+        });
+        h+='</div>';
+      });
+      h+='<div class="hint" style="margin:12px 2px">Al copiar, la lista queda lista para pegarla en WhatsApp o en un correo a tu proveedor.</div>'
+        +'<div class="mfoot"><button class="btn" data-act="close">Cerrar</button><button class="btn primary" data-act="copy-buy">Copiar lista</button></div>';
+    }
   } else if(m.kind==="xprev"){
     h+='<h2>Importar desde Excel</h2><p class="hint" style="font-size:14px;margin-top:-6px">'+esc(m.file)+(m.sheets>1?" · hoja “"+esc(m.sheet)+"”":"")+'</p>'
       +'<div class="kpis" style="margin:0 0 12px"><div class="kpi"><div class="l">Productos</div><div class="v">'+nf.format(m.np)+'</div></div><div class="kpi"><div class="l">Filas (tallas)</div><div class="v">'+nf.format(m.recs.length)+'</div></div></div>'
@@ -1174,7 +1208,8 @@ root.addEventListener("click",e=>{
   else if(a==="xexport") exportExcel();
   else if(a==="backup") backup();
   else if(a==="restore"){ state=ui.modal.data; normalize(); ui.modal=null; ui.tab="inv"; commit(); toast("Respaldo restaurado"); }
-  else if(a==="buy"){ ui.modal={kind:"text",title:"Lista de compra",text:buyText(),note:"Lo que está en el mínimo o bajo él, agrupado por proveedor. La cantidad a pedir es una sugerencia para llegar al doble del mínimo."}; render(); }
+  else if(a==="buy"){ ui.modal={kind:"buy"}; render(); }
+  else if(a==="copy-buy"){ const tx=buyText(); try{ navigator.clipboard.writeText(tx).then(()=>toast("Lista copiada. Pégala en WhatsApp o en un correo."),()=>{ ui.modal={kind:"text",title:"Lista de compra",text:tx}; render(); }); }catch(er){ ui.modal={kind:"text",title:"Lista de compra",text:tx}; render(); } }
   else if(a==="copy-text") copyText(ui.modal.text,"Copiado");
   else if(a==="count"){ if(!state.products.length) toast("Aún no hay productos"); else { ui.modal={kind:"count"}; render(); } }
   else if(a==="ask-wipe"){ if(!state.products.length&&!state.moves.length) toast("El inventario ya está vacío"); else { ui.modal={kind:"wipe"}; render(); } }
