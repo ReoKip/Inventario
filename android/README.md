@@ -1,6 +1,6 @@
-# Inventario para Android
+# Stocky para Android
 
-`Inventario.apk` es la app de inventario (`../inventario.html`) empaquetada para Android.
+`Inventario.apk` es Stocky, la app de inventario (`../inventario.html`) empaquetada para Android.
 Funciona sin conexión; solo necesita internet para importar o exportar Excel.
 
 ## Instalar

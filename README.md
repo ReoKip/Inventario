@@ -1,6 +1,6 @@
-# Inventario
+# Stocky
 
-App para llevar el inventario de una tienda: productos con fotos y variantes (tallas, números, formatos…),
+**Stocky** (antes "Inventario") es una app para llevar el inventario de una tienda: productos con fotos y variantes (tallas, números, formatos…),
 ventas, entradas, cierre de caja, lista de compra, toma de inventario, Excel y respaldos.
 
 - **App web:** [`inventario.html`](inventario.html), un solo archivo que funciona en el navegador.
