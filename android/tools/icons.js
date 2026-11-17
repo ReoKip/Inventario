@@ -12,4 +12,7 @@ const shot=async(svg,size,file)=>{await p.setViewportSize({width:size,height:siz
  fs.mkdirSync(path.dirname(file),{recursive:true});await p.screenshot({path:file,omitBackground:true});};
 for(const [d,s] of [["mdpi",48],["hdpi",72],["xhdpi",96],["xxhdpi",144],["xxxhdpi",192]]) await shot(svgs.legacy,s,`res/mipmap-${d}/ic_launcher.png`);
 await shot(svgs.bg,432,"res/drawable-xxxhdpi/ic_launcher_bg.png");await shot(svgs.fg,432,"res/drawable-xxxhdpi/ic_launcher_fg.png");
-await shot(svgs.legacy,512,"tools/icon-512.png");await b.close();})();
+// Íconos de la app web (iPhone y navegadores): cuadrados sin bordes; el sistema redondea las esquinas.
+const full=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108"><defs>${GRAD}</defs><rect width="108" height="108" fill="url(#g)"/>${glyph(2.4)}</svg>`;
+const mask=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108"><defs>${GRAD}</defs><rect width="108" height="108" fill="url(#g)"/>${glyph(1.9)}</svg>`;
+await shot(full,180,"../icons/apple-touch-icon.png");await shot(full,192,"../icons/icon-192.png");await shot(full,512,"../icons/icon-512.png");await shot(mask,512,"../icons/icon-maskable-512.png");await b.close();})();
