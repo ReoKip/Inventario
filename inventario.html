@@ -261,13 +261,10 @@ textarea.mono{font-family:ui-monospace,Menlo,monospace;font-size:13px}
 @media(prefers-reduced-motion:reduce){.tabc.in-r,.tabc.in-l,.head.swap .search,.head.swap .filters,.head.swap .sect,.nav button.on.pop svg,.onb-body,.sheet{animation:none}.navlens{transition:none}}
 .tseg{position:relative;isolation:isolate}
 .tseg .segthumb{position:absolute;top:4px;bottom:4px;left:calc(4px + var(--i,0) * (100% - 8px) / 2);width:calc((100% - 8px) / 2);border-radius:9px;z-index:-1;
-  background:var(--accent);box-shadow:0 3px 10px var(--glow),inset 0 1px 0 rgba(255,255,255,.35);transition:left .45s cubic-bezier(.34,1.45,.5,1),background-color .3s}
+  background:var(--accent);box-shadow:0 3px 10px var(--glow),inset 0 1px 0 rgba(255,255,255,.35);transition:left .28s cubic-bezier(.3,.7,.3,1),background-color .3s}
 .tseg button,.tseg button.on{background:none;display:flex;align-items:center;justify-content:center;gap:7px;transition:color .3s}
 .tseg button.on{color:var(--accent-ink)}
-.tseg button svg{transition:transform .45s cubic-bezier(.34,1.45,.5,1)}
-.tseg button.on svg{transform:rotate(-20deg) scale(1.1)}
-.tseg:active .segthumb{transform:scale(.97)}
-@media(prefers-reduced-motion:reduce){.tseg .segthumb,.tseg button svg{transition:none}}
+@media(prefers-reduced-motion:reduce){.tseg .segthumb{transition:none}}
 .sumcard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px 14px;margin-bottom:12px}
 
 </style>
