@@ -236,6 +236,18 @@ textarea.mono{font-family:ui-monospace,Menlo,monospace;font-size:13px}
 .buyq{flex:0 0 auto;text-align:center;background:var(--accent);color:var(--accent-ink);border-radius:12px;padding:6px 10px;min-width:64px;line-height:1.1}
 .buyq small{display:block;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;opacity:.8}
 .buyq b{font-size:18px;font-variant-numeric:tabular-nums}
+.tabc.in-r{animation:tabR .28s cubic-bezier(.2,.8,.2,1)}
+.tabc.in-l{animation:tabL .28s cubic-bezier(.2,.8,.2,1)}
+@keyframes tabR{from{opacity:0;transform:translateX(28px)}to{opacity:1;transform:none}}
+@keyframes tabL{from{opacity:0;transform:translateX(-28px)}to{opacity:1;transform:none}}
+.head.swap .search,.head.swap .filters,.head.swap .sect{animation:fadein .25s ease-out}
+.nav button svg{position:relative;z-index:1;transition:transform .2s}
+.nav button::before{content:"";position:absolute;top:7px;left:50%;width:56px;height:30px;margin-left:-28px;border-radius:99px;background:var(--accent-soft);transform:scaleX(.3);opacity:0;transition:transform .25s cubic-bezier(.2,.8,.2,1),opacity .2s}
+.nav button.on::before{transform:none;opacity:1}
+.nav button.on.pop svg{animation:pop .35s cubic-bezier(.2,.8,.2,1)}
+@keyframes pop{0%{transform:scale(.8)}60%{transform:scale(1.12)}100%{transform:none}}
+.nav .badge{z-index:2}
+@media(prefers-reduced-motion:reduce){.tabc.in-r,.tabc.in-l,.head.swap .search,.head.swap .filters,.head.swap .sect,.nav button.on.pop svg,.onb-body,.sheet{animation:none}.nav button::before{transition:none}}
 .sumcard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px 14px;margin-bottom:12px}
 
 </style>
@@ -746,7 +758,7 @@ function render(){
   if(ui.onb){ renderOnb(); return; }
   const P=state.products, ro=mode==="readonly", al=alertCount();
   const title={inv:"Inventario",mov:"Movimientos",sum:"Resumen",set:"Ajustes"}[ui.tab];
-  let h='<div class="app"><div class="head"><div class="headrow"><div class="brand"><h1'+(ro?'':' data-act="rename" role="button" tabindex="0" title="Cambiar nombre"')+'>'+esc(state.name)+'</h1><div class="sect">'+title+(state.setup.owner?' · Hola, '+esc(firstName(state.setup.owner)):"")+'</div></div>'
+  let h='<div class="app"><div class="head'+(ui.anim?" swap":"")+'"><div class="headrow"><div class="brand"><h1'+(ro?'':' data-act="rename" role="button" tabindex="0" title="Cambiar nombre"')+'>'+esc(state.name)+'</h1><div class="sect">'+title+(state.setup.owner?' · Hola, '+esc(firstName(state.setup.owner)):"")+'</div></div>'
     +(ui.tab==="inv"&&P.length?'<div class="vsw" role="group" aria-label="Vista de productos">'+VIEWS.map(v=>'<button type="button" data-view="'+v[0]+'" class="'+(ui.view===v[0]?"on":"")+'" aria-label="'+v[1]+'" title="'+v[1]+'"'+(ui.view===v[0]?' aria-pressed="true"':' aria-pressed="false"')+'>'+v[2]+'</button>').join("")+'</div>':"")+'</div>';
   if(ui.tab==="inv"){
     h+='<div class="search">'+SEARCH_SVG+'<input type="search" id="q" placeholder="Buscar nombre o código" value="'+esc(ui.q)+'" autocomplete="off"></div>';
@@ -760,6 +772,9 @@ function render(){
       +'<div class="filters">'+[["","Todos"],["in","Entradas"],["out","Salidas"],["adj","Ajustes"]].map(o=>'<button class="fchip'+(ui.mtype===o[0]?" sel":"")+'" data-mtype="'+o[0]+'">'+o[1]+'</button>').join("")+'</div>';
   }
   h+='</div>';
+  const anim=ui.anim; ui.anim=null;
+  h+='<div class="tabc'+(anim?" in-"+anim:"")+'">';
+  let fab="";
   if(mode==="local") h+='<div class="banner">Los cambios se guardan solo en este dispositivo. Abre la app desde su enlace en Claude para guardarlos en la app.</div>';
   if(ro) h+='<div class="banner">Estás viendo este inventario en modo solo lectura.</div>';
 
@@ -802,7 +817,7 @@ function render(){
       h+='</div>';
     }
     if(!ro) h+='<div class="wipe"><button class="btn danger block" data-act="ask-wipe">Eliminar todo</button><div class="hint">Borra todos los productos y movimientos del inventario.</div></div>';
-    if(!ro) h+='<button class="fab" data-act="new"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Nuevo</button>';
+    if(!ro) fab='<button class="fab" data-act="new"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Nuevo</button>';
   } else if(ui.tab==="mov"){
     const mq=ui.mq.toLowerCase();
     const ms=state.moves.filter(m=>{ const p=prod(m.pid); if(ui.mtype&&m.type!==ui.mtype) return false; if(mq&&((p?p.name+" "+p.sku:"")+" "+(m.note||"")).toLowerCase().indexOf(mq)<0) return false; return true; }).slice(0,300);
@@ -867,8 +882,8 @@ function render(){
     h+='<h2 class="sec">Respaldo</h2><div class="tools"><button class="btn" data-act="backup">Descargar respaldo</button>'+(ro?"":'<label class="btn filebtn">Restaurar respaldo<input type="file" id="rfile" accept=".json,application/json,text/plain"></label>')+'</div>'
       +'<div class="hint" style="margin-top:8px">El respaldo guarda todo: productos, fotos y movimientos. Conviene descargarlo cada cierto tiempo.</div>';
   }
-  h+='</div>';
-  const nb=(t,icon,label,extra)=>'<button data-tab="'+t+'" class="'+(ui.tab===t?"on":"")+'">'+icon+label+(extra||"")+'</button>';
+  h+='</div>'+fab+'</div>';
+  const nb=(t,icon,label,extra)=>'<button data-tab="'+t+'" class="'+(ui.tab===t?(anim?"on pop":"on"):"")+'">'+icon+label+(extra||"")+'</button>';
   h+='<nav class="nav">'
     +nb("inv",'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5v-9Z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/></svg>',"Productos")
     +nb("mov",'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16m0 0-3-3m3 3 3-3M17 20V4m0 0-3 3m3-3 3 3"/></svg>',"Movimientos")
@@ -1164,7 +1179,7 @@ root.addEventListener("click",e=>{
   if(d.otype){ ui.onb.type=d.otype; ui.onb.err=""; render(); return; }
   if(d.themeSet){ if(d.themeSet!==theme) setTheme(d.themeSet); return; }
   if(d.msize!==undefined){ syncMove(); ui.modal.size=d.msize; ui.modal.err=null; if(ui.modal.type==="adj") ui.modal.qty=null; render(); return; }
-  if(d.tab){ ui.tab=d.tab; render(); window.scrollTo(0,0); return; }
+  if(d.tab){ if(d.tab===ui.tab){ window.scrollTo({top:0,behavior:"smooth"}); return; } const T=["inv","mov","sum","set"]; ui.anim=T.indexOf(d.tab)>T.indexOf(ui.tab)?"r":"l"; ui.tab=d.tab; render(); window.scrollTo(0,0); return; }
   if(d.per){ ui.per=d.per; render(); return; }
   if(d.mtype!==undefined){ ui.mtype=d.mtype; render(); return; }
   if(d.mt){ syncMove(); const m=ui.modal; if(m.type!==d.mt){ m.type=d.mt; m.reason=d.mt==="in"?"compra":d.mt==="out"?"venta":"ajuste"; m.qty=d.mt==="adj"?null:(m.qty==null?"1":m.qty); } m.err=null; render(); return; }
