@@ -340,6 +340,9 @@ textarea.mono{font-family:ui-monospace,Menlo,monospace;font-size:13px}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
 .chips button{border:1px solid var(--line);background:var(--field);border-radius:99px;padding:8px 12px;font-size:13px;font-weight:600;text-align:left}
 .askrow{display:flex;gap:8px}.askrow input{flex:1;min-width:0}.askrow .btn{flex:0 0 auto}
+.betapill{display:inline-block;vertical-align:1px;margin-right:6px;padding:1px 7px;border-radius:99px;background:#2563eb;color:#fff;font-size:10px;font-weight:700;letter-spacing:.06em}
+.banner.beta{background:rgba(37,99,235,.12);color:#2563eb}
+html[data-theme="dark"] .banner.beta{color:#8ec5ff}
 .sumcard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px 14px;margin-bottom:12px}
 
 </style>
@@ -350,7 +353,13 @@ textarea.mono{font-family:ui-monospace,Menlo,monospace;font-size:13px}
 <script>
 (function(){
 "use strict";
-const LS_KEY="inventario-app-v1", TH_KEY="inventario-tema";
+/* Canal: "stable" (la versión de los usuarios) o "beta" (versión de prueba).
+   En la web se detecta por la carpeta /beta/; en Android lo fija build.sh al compilar Stok Beta.
+   La beta guarda sus datos con otras claves, así nunca toca el inventario de la versión normal. */
+const BUILD_CHANNEL="";
+const CHANNEL=BUILD_CHANNEL||(/\/beta\//.test(location.pathname)?"beta":"stable");
+const IS_BETA=CHANNEL==="beta", KEY_SUFFIX=IS_BETA?"-beta":"";
+const LS_KEY="inventario-app-v1"+KEY_SUFFIX, TH_KEY="inventario-tema"+KEY_SUFFIX;
 const REASONS_OUT=[["venta","Venta"],["merma","Merma o daño"],["robo","Robo o pérdida"],["regalo","Regalo o muestra"],["interno","Uso interno"],["devprov","Devolución a proveedor"]];
 const REASONS_IN=[["compra","Compra a proveedor"],["devcli","Devolución de cliente"],["otro","Otro ingreso"]];
 const PAYS=[["efectivo","Efectivo"],["debito","Débito"],["credito","Crédito"],["transferencia","Transferencia"],["otro","Otro"]];
@@ -456,7 +465,7 @@ let theme="light", acct=null, userApi=null, artifactApi=null, assetsApi=null, dl
 try{ const st=localStorage.getItem(TH_KEY); if(st==="light"||st==="dark") theme=st; else if(state.theme==="dark") theme="dark"; }catch(e){ if(state.theme==="dark") theme="dark"; }
 function applyTheme(){ document.documentElement.setAttribute("data-theme",theme); const tc=document.querySelector('meta[name="theme-color"]'); if(tc) tc.setAttribute("content",theme==="dark"?"#050a1c":"#ece3ea"); try{ if(window.AndroidApp&&window.AndroidApp.setTheme) window.AndroidApp.setTheme(theme==="dark"); }catch(e){} }
 applyTheme();
-const VW_KEY="inventario-vista";
+const VW_KEY="inventario-vista"+KEY_SUFFIX;
 const ui={view:(function(){ try{ const v=localStorage.getItem(VW_KEY); return v==="list"||v==="gal"?v:"cards"; }catch(e){ return "cards"; } })(),tab:"inv",q:"",cat:"",size:"",use:"",sup:"",lowOnly:false,sort:"name",modal:null,mq:"",mtype:"",per:"hoy",lastPay:"efectivo"};
 let mode="loading", saveTimer=null, busy=false;
 
@@ -497,7 +506,7 @@ function buildDoc(){
   return '<!DOCTYPE html>\n<html lang="es">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">\n<title>Stok · Inventario</title>\n<link rel="preconnect" href="https://fonts.googleapis.com">\n<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">\n<link rel="stylesheet" href="app.css">\n</head>\n<body>\n<script id="app-state" type="application/json">'+json+'<\/script>\n<div id="root"></div>\n<script src="app.js"><\/script>\n</body>\n</html>\n';
 }
 /* En Claude, guardar recarga la página: se recuerda la pantalla para volver al mismo lugar. */
-const UI_KEY="stok-ui";
+const UI_KEY="stok-ui"+KEY_SUFFIX;
 function saveUI(){ try{ sessionStorage.setItem(UI_KEY,JSON.stringify({t:Date.now(),tab:ui.tab,view:ui.view,q:ui.q,cat:ui.cat,size:ui.size,use:ui.use,sup:ui.sup,lowOnly:ui.lowOnly,sort:ui.sort,per:ui.per,mtype:ui.mtype,mq:ui.mq,y:window.scrollY||0,
   buy:ui.modal&&ui.modal.kind==="buy"?{tab:ui.modal.tab||"list",q:ui.modal.q||"",low:!!ui.modal.low,sy:(document.querySelector(".sheet")||{}).scrollTop||0}:null,
   toast:lastToast&&Date.now()-lastToast.t<2500?lastToast.msg:""})); }catch(e){} }
@@ -741,7 +750,7 @@ function faqList(){
     ["¿Cómo la instalo en el iPhone?","Abre reokip.github.io/Inventario en Safari, toca Compartir (el cuadro con flecha) y luego “Agregar a pantalla de inicio”."]
   ];
 }
-function platformName(){ return IN_ANDROID?"Android (APK)":IN_WEB?(INSTALLED?"App instalada":"Navegador"):"Claude"; }
+function platformName(){ return (IN_ANDROID?"Android (APK)":IN_WEB?(INSTALLED?"App instalada":"Navegador"):"Claude")+(IS_BETA?" · Beta":""); }
 function feedbackText(m){
   const t={sug:"Sugerencia",prob:"Problema",preg:"Pregunta"}[m.type||"sug"], st=STYPES[state.setup.type];
   return "Stok — "+t+"\n\n"+(m.text||"").trim()+"\n\n— "+((m.name!=null?m.name:state.setup.owner||"").trim()||"Sin nombre")+"\nTienda: "+(st?st.n:"sin tipo")+" · "+state.products.length+" productos\nVersión "+APP_VERSION+" · "+platformName()+"\n"+navigator.userAgent.replace(/\s+/g," ").slice(0,160);
@@ -1005,7 +1014,7 @@ function render(){
   if(ui.onb){ renderOnb(); return; }
   const P=state.products, ro=mode==="readonly", al=alertCount();
   const title={inv:"Inventario",mov:"Movimientos",sum:"Resumen",set:"Ajustes"}[ui.tab];
-  let h='<div class="app"><div class="head'+(ui.anim?" swap":"")+'"><div class="headrow"><div class="brand"><h1'+(ro?'':' data-act="rename" role="button" tabindex="0" title="Cambiar nombre"')+'>'+esc(state.name)+'</h1><div class="sect">'+title+(state.setup.owner?' · Hola, '+esc(firstName(state.setup.owner)):"")+'</div></div>'
+  let h='<div class="app"><div class="head'+(ui.anim?" swap":"")+'"><div class="headrow"><div class="brand"><h1'+(ro?'':' data-act="rename" role="button" tabindex="0" title="Cambiar nombre"')+'>'+esc(state.name)+'</h1><div class="sect">'+(IS_BETA?'<span class="betapill">BETA</span>':"")+title+(state.setup.owner?' · Hola, '+esc(firstName(state.setup.owner)):"")+'</div></div>'
     +(ui.tab==="inv"&&P.length?'<div class="vsw" role="group" aria-label="Vista de productos">'+VIEWS.map(v=>'<button type="button" data-view="'+v[0]+'" class="'+(ui.view===v[0]?"on":"")+'" aria-label="'+v[1]+'" title="'+v[1]+'"'+(ui.view===v[0]?' aria-pressed="true"':' aria-pressed="false"')+'>'+v[2]+'</button>').join("")+'</div>':"")+'</div>';
   if(ui.tab==="inv"){
     h+='<div class="search">'+SEARCH_SVG+'<input type="search" id="q" placeholder="Buscar nombre o código" value="'+esc(ui.q)+'" autocomplete="off"></div>';
@@ -1022,6 +1031,7 @@ function render(){
   const anim=ui.anim; ui.anim=null;
   h+='<div class="tabc'+(anim?" in-"+anim:"")+'">';
   let fab="";
+  if(IS_BETA&&ui.tab==="set") h+='<div class="banner beta"><b>Versión de prueba.</b> Aquí se prueban los cambios antes de llegar a la versión normal. Sus datos están separados: lo que hagas aquí no toca tu inventario real.</div>';
   if(mode==="local"&&!IN_ANDROID&&!IN_WEB) h+='<div class="banner">Los cambios se guardan solo en este dispositivo. Abre la app desde su enlace en Claude para guardarlos en la app.</div>';
   if(ro) h+='<div class="banner">Estás viendo este inventario en modo solo lectura.</div>';
 

@@ -11,6 +11,11 @@ Funciona sin conexión; solo necesita internet para importar o exportar Excel.
 Los datos se guardan en el teléfono. Para pasar tu inventario desde la versión de Claude:
 en Claude usa **Ajustes → Descargar respaldo**, y en la app de Android **Ajustes → Restaurar respaldo**.
 
+## Versión de prueba
+
+`./build.sh beta` crea `Stok-Beta.apk`: se llama "Stok Beta", tiene ícono azul y se instala **al lado**
+de la versión normal (otro identificador de app: `com.reokip.inventario.beta`), con sus datos separados.
+
 ## Volver a construirla
 Requiere Ubuntu o Debian con:
 

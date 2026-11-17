@@ -1,9 +1,11 @@
-# Publica la app web en GitHub Pages cada vez que cambia main.
+# Publica la app web en GitHub Pages cada vez que cambia main o beta:
+#   https://reokip.github.io/Inventario/       ← rama main (versión de los usuarios)
+#   https://reokip.github.io/Inventario/beta/  ← rama beta (versión de prueba)
 name: Publicar app web
 
 on:
   push:
-    branches: [main]
+    branches: [main, beta]
   workflow_dispatch:
 
 permissions:
@@ -22,12 +24,22 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
+      - name: Versión normal (main)
+        uses: actions/checkout@v4
         with:
-          enablement: true
+          ref: main
+          path: main
+      - name: Versión de prueba (beta)
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: beta
+          path: beta
+      - name: Armar el sitio
+        run: bash main/.github/build-site.sh main beta site
+      - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: site
       - id: deployment
         uses: actions/deploy-pages@v4
