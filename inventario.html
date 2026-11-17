@@ -266,7 +266,7 @@ textarea.mono{font-family:ui-monospace,Menlo,monospace;font-size:13px}
 .tabc.in-l{animation:tabL .2s ease-out}
 @keyframes tabR{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:none}}
 @keyframes tabL{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
-.head.swap .search,.head.swap .filters,.head.swap .sect{animation:fadein .25s ease-out}
+.head.swap .search,.head.swap .filters,.head.swap .sect,.head.swap .brand h1{animation:fadein .25s ease-out}
 .nav button svg{position:relative;z-index:1;transition:transform .2s}
 @keyframes pop{0%{transform:scale(.8)}60%{transform:scale(1.12)}100%{transform:none}}
 .nav .badge{z-index:2}
@@ -341,6 +341,10 @@ textarea.mono{font-family:ui-monospace,Menlo,monospace;font-size:13px}
 .chips button{border:1px solid var(--line);background:var(--field);border-radius:99px;padding:8px 12px;font-size:13px;font-weight:600;text-align:left}
 .askrow{display:flex;gap:8px}.askrow input{flex:1;min-width:0}.askrow .btn{flex:0 0 auto}
 .betapill{display:inline-block;vertical-align:1px;margin-right:6px;padding:1px 7px;border-radius:99px;background:#2563eb;color:#fff;font-size:10px;font-weight:700;letter-spacing:.06em}
+.soon{display:flex;gap:12px;align-items:flex-start;background:var(--card);border:1px dashed var(--line);border-radius:var(--radius);padding:14px 16px}
+.soon .soonic{flex:none;width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--chip,rgba(118,82,210,.1));color:var(--muted)}
+.soon .t{font-weight:600;color:var(--muted)}.soon .s{font-size:13px;color:var(--muted);margin-top:2px}
+.protag{display:inline-block;vertical-align:1px;margin-left:4px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.02em;color:#fff;background:linear-gradient(135deg,#ff8361,#e0507a 55%,#7652d2);white-space:nowrap}
 .banner.beta{background:rgba(37,99,235,.12);color:#2563eb}
 html[data-theme="dark"] .banner.beta{color:#8ec5ff}
 .sumcard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px 14px;margin-bottom:12px}
@@ -369,7 +373,7 @@ const LOSS={merma:1,robo:1,regalo:1,interno:1};
 const IVA=0.19;
 const APP_VERSION="0.1";
 /* A dónde llegan las sugerencias. Completar con el correo y/o WhatsApp (solo números, con código de país). */
-const SUPPORT={email:"",whatsapp:""};
+const SUPPORT={email:"rafaeltom050@icloud.com",whatsapp:""};
 /* Dónde corre la app: dentro de Claude (marco), en la APK de Android, o como página web propia. */
 const IN_ANDROID=!!window.AndroidApp;
 const IN_WEB=!IN_ANDROID&&(function(){ try{ return window.top===window; }catch(e){ return false; } })();
@@ -497,8 +501,84 @@ function mv(o){ state.moves.unshift(Object.assign({id:uid(),date:now(),size:"",n
 function pushCost(p,old){ if(old>0){ p.costHist.push({d:now(),c:old}); if(p.costHist.length>20) p.costHist.shift(); } }
 const ICON_BOX='<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5v-9Z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/></svg>';
 const phBox=cls=>'<div class="'+cls+'">'+(cls==="mini"?"":ICON_BOX)+'</div>';
-const thumb=(p,cls)=>p&&p.img?'<img class="'+cls+'" data-ph="'+cls+'" src="'+esc(p.img)+'" alt="">':phBox(cls);
+const pimg=p=>p&&p.img&&p.img.indexOf(PH_REF)!==0?p.img:"";
+const thumb=(p,cls)=>pimg(p)?'<img class="'+cls+'" data-ph="'+cls+'" src="'+esc(p.img)+'" alt="">':phBox(cls);
 const opts=(list,val)=>list.map(o=>'<option value="'+o[0]+'"'+(o[0]===val?" selected":"")+'>'+o[1]+'</option>').join("");
+
+/* ---------- fotos en el teléfono (IndexedDB) ----------
+   En el teléfono los datos van en localStorage, que tiene ~5 MB: no alcanza para muchas fotos.
+   Por eso las fotos se guardan aparte en IndexedDB (cientos de MB) y en localStorage queda solo
+   una referencia "idb:<clave>". Si IndexedDB no está disponible, las fotos siguen guardándose como antes. */
+const PH_REF="idb:", PH_DB="stok-fotos"+KEY_SUFFIX;
+let phDB=null, phOK=null; // phOK: null = sin probar, true/false = IndexedDB funciona o no
+const phKeys=new Map(), phSaved=new Set(); // foto → clave, y claves que ya están en IndexedDB
+function photoDB(){
+  if(!phDB) phDB=new Promise((res,rej)=>{
+    try{ const r=indexedDB.open(PH_DB,1);
+      r.onupgradeneeded=()=>r.result.createObjectStore("f");
+      r.onsuccess=()=>{ phOK=true; res(r.result); }; r.onerror=()=>rej(r.error); r.onblocked=()=>rej(new Error("blocked"));
+    }catch(e){ rej(e); }
+  }).catch(e=>{ phOK=false; throw e; });
+  return phDB;
+}
+function phTx(rw,fn){ return photoDB().then(db=>new Promise((res,rej)=>{ const tx=db.transaction("f",rw), st=tx.objectStore("f"), out=fn(st); tx.oncomplete=()=>res(out&&"result" in out?out.result:undefined); tx.onerror=tx.onabort=()=>rej(tx.error||new Error("tx")); })); }
+function photoKey(d){ // huella de la foto (cyrb53), así la misma foto se guarda una sola vez
+  let k=phKeys.get(d); if(k) return k;
+  let h1=0xdeadbeef^d.length, h2=0x41c6ce57^d.length;
+  for(let i=0;i<d.length;i++){ const c=d.charCodeAt(i); h1=Math.imul(h1^c,2654435761); h2=Math.imul(h2^c,1597334677); }
+  h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909); h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);
+  k=(h2>>>0).toString(36)+(h1>>>0).toString(36)+d.length.toString(36); phKeys.set(d,k); return k;
+}
+const isPhoto=v=>typeof v==="string"&&v.indexOf("data:image")===0;
+let phPending=null, saveWarnT=0;
+function saveLocal(){
+  // Las fotos que ya están en IndexedDB se guardan como referencia; las nuevas, completas (por si la app se cierra ya mismo).
+  const pend=[];
+  const json=all=>JSON.stringify(state,function(k,v){
+    if(k!=="img"||!isPhoto(v)||phOK===false&&!all) return v;
+    const key=photoKey(v); if(phSaved.has(key)) return PH_REF+key;
+    if(!all){ pend.push([key,v]); return v; } return PH_REF+key;
+  });
+  let ok=false, err=null;
+  try{ localStorage.setItem(LS_KEY,json(false)); ok=true; }catch(e){ err=e; }
+  if(!ok&&pend.length&&phOK){ // sin espacio: guarda ya las referencias, las fotos llegan a IndexedDB en milisegundos
+    try{ localStorage.setItem(LS_KEY,json(true)); ok=true; }catch(e){ err=e; }
+  }
+  if(!ok) saveWarn(err);
+  if(pend.length&&phOK!==false&&!phPending){
+    phPending=phTx("readwrite",st=>{ pend.forEach(([k,v])=>st.put(v,k)); })
+      .then(()=>{ pend.forEach(([k])=>phSaved.add(k)); phPending=null; saveLocal(); })
+      .catch(()=>{ phPending=null; });
+  }
+}
+function saveWarn(e){
+  if(Date.now()-saveWarnT<60000) return; saveWarnT=Date.now();
+  const full=e&&(e.name==="QuotaExceededError"||e.code===22||/quota/i.test(String(e.message||e.name)));
+  toast(full?"El teléfono no tiene espacio para guardar los cambios. Descarga un respaldo en Ajustes.":"No se pudieron guardar los cambios en este teléfono. Descarga un respaldo en Ajustes.");
+}
+function loadPhotos(){
+  // Cambia las referencias "idb:" por las fotos. Si IndexedDB no responde, las referencias se conservan
+  // (no se borra nada) y los productos se muestran sin foto hasta la próxima vez.
+  const refs=state.products.filter(p=>typeof p.img==="string"&&p.img.indexOf(PH_REF)===0);
+  const hasInline=state.products.some(p=>isPhoto(p.img));
+  if(!refs.length&&!hasInline){ photoDB().then(()=>setTimeout(cleanPhotos,4000),()=>{}); return Promise.resolve(); }
+  const work=photoDB().then(()=>refs.length?phTx("readonly",st=>{ const out={result:{}}; refs.forEach(p=>{ const k=p.img.slice(PH_REF.length), r=st.get(k); r.onsuccess=()=>{ out.result[k]=r.result; }; }); return out; }):{})
+    .then(found=>{
+      refs.forEach(p=>{ const k=p.img.slice(PH_REF.length), d=found[k];
+        if(isPhoto(d)){ p.img=d; phKeys.set(d,k); phSaved.add(k); } else p.img=""; });
+      if(hasInline||refs.some(p=>!p.img)) setTimeout(saveLocal,0); // pasa las fotos antiguas a IndexedDB
+      setTimeout(cleanPhotos,4000);
+      if(late) render(); // llegaron después de mostrar la app
+    });
+  let late=false;
+  return Promise.race([work.catch(()=>{}),new Promise(r=>setTimeout(r,2500))]).then(()=>{ late=true; });
+}
+function cleanPhotos(){ // borra fotos que ya no usa ningún producto
+  if(!phOK||mode!=="local") return;
+  const used=new Set(state.products.map(p=>isPhoto(p.img)?photoKey(p.img):typeof p.img==="string"&&p.img.indexOf(PH_REF)===0?p.img.slice(PH_REF.length):"").filter(Boolean));
+  if(state.products.some(p=>isPhoto(p.img)&&!phSaved.has(photoKey(p.img)))) return; // todavía guardando
+  phTx("readwrite",st=>{ const r=st.getAllKeys(); r.onsuccess=()=>{ (r.result||[]).forEach(k=>{ if(!used.has(k)){ st.delete(k); phSaved.delete(k); } }); }; }).catch(()=>{});
+}
 
 /* ---------- guardado ---------- */
 function buildDoc(){
@@ -518,7 +598,7 @@ function restoreUI(){ let o=null; try{ o=JSON.parse(sessionStorage.getItem(UI_KE
 function commit(){
   render();
   if(mode==="readonly") return;
-  if(mode!=="shared"){ try{ localStorage.setItem(LS_KEY,JSON.stringify(state)); }catch(e){} return; }
+  if(mode!=="shared"){ saveLocal(); return; }
   clearTimeout(saveTimer);
   saveTimer=setTimeout(()=>{
     saveUI();
@@ -956,9 +1036,45 @@ function rowsToRecs(rows){
     const g=(k,isMoney)=>map[k]==null?"":xcell(row[map[k]],isMoney);
     const name=g("name");
     if(!name){ if(row.some(c=>xcell(c)!=="")) skipped++; continue; }
+    if(TPL_EX.test(g("sku"))) continue;
     recs.push({sku:g("sku"),name:name,cat:g("cat"),size:g("size"),use:g("use"),stock:g("stock"),min:g("min"),cost:g("cost",true),price:g("price",true),sup:g("sup")});
   }
   return {recs:recs,skipped:skipped,header:header,cols:Object.keys(XLBL).filter(k=>map[k]!=null)};
+}
+// Plantilla de Excel: columnas que la app reconoce siempre, con ejemplos que no se importan.
+const TPL_EX=/^ejemplo/i;
+function templateRows(){
+  const t=VT(), st=STYPES[state.setup.type]||STYPES.otro||{}, sm=(st.sample||[]).slice(0,2), rows=[["Código","Nombre","Categoría",t.v,t.use,"Stock","Stock mínimo","Costo","Precio","Proveedor"]];
+  sm.forEach((x,i)=>{ const code="EJEMPLO-"+(i+1);
+    if(x.sizes&&x.sizes.length) x.sizes.slice(0,2).forEach(z=>rows.push([code,x.name,x.cat||"",z[0],x.use||"",z[1],x.min||0,x.cost||0,x.price||0,"Proveedor de ejemplo"]));
+    else rows.push([code,x.name,x.cat||"","",x.use||"",x.stock||0,x.min||0,x.cost||0,x.price||0,"Proveedor de ejemplo"]); });
+  return rows;
+}
+function templateHelp(){
+  const t=VT();
+  return [["Cómo llenar la plantilla de Stok"],[""],
+    ["1. Escribe tus productos en la hoja «Productos», una fila por producto, debajo de los títulos."],
+    ["2. No cambies ni borres la fila de títulos. Las filas que empiezan con EJEMPLO no se importan: puedes borrarlas o dejarlas."],
+    ["3. Solo el Nombre es obligatorio. Las demás columnas puedes dejarlas vacías."],
+    ["4. Si un producto tiene varias opciones de "+t.v.toLowerCase()+", usa una fila por cada una con el mismo Código y Nombre, y en Stock la cantidad de esa opción."],
+    ["5. Escribe los precios y costos solo con números, sin $ ni puntos (ej.: 9990)."],
+    ["6. Guarda el archivo y en Stok ve a Ajustes → Importar archivo Excel."],[""],
+    ["Columnas"],["Código: tu código interno o código de barras. Si lo pones, sirve para actualizar el producto la próxima vez."],
+    ["Nombre: el nombre del producto (obligatorio)."],["Categoría: para agrupar y filtrar (ej.: "+((STYPES[state.setup.type]||{}).cats||["Bebidas"]).slice(0,2).join(", ")+")."],
+    [t.v+": opcional (ej.: "+(t.ex||"")+")."],[t.use+": opcional."],["Stock: cuántas unidades tienes hoy."],
+    ["Stock mínimo: desde cuántas unidades la app te avisa que queda poco."],["Costo: lo que te cuesta a ti cada unidad."],["Precio: a cuánto lo vendes."],["Proveedor: a quién se lo compras."]];
+}
+function downloadTemplate(){
+  if(!dlApi){ toast("No se puede descargar archivos aquí."); return; }
+  toast("Preparando plantilla…");
+  loadXLSX().then(X=>{
+    const wb=X.utils.book_new(), ws=X.utils.aoa_to_sheet(templateRows());
+    ws["!cols"]=[12,30,16,12,14,8,13,10,10,20].map(w=>({wch:w}));
+    X.utils.book_append_sheet(wb,ws,"Productos");
+    const hs=X.utils.aoa_to_sheet(templateHelp()); hs["!cols"]=[{wch:110}];
+    X.utils.book_append_sheet(wb,hs,"Instrucciones");
+    return saveFile("plantilla-stok.xlsx",new Blob([X.write(wb,{bookType:"xlsx",type:"array"})]),"Plantilla descargada");
+  }).catch(e=>{ if(e&&e.message==="net") toast("Para descargar la plantilla necesitas internet."); else dlError(e); });
 }
 const recsToText=recs=>["Código\tNombre"].concat(recs.map(x=>[x.sku,x.name,x.cat,x.size,x.use,x.stock,x.min,x.cost,x.price,x.sup].join("\t"))).join("\n");
 function handleXFile(file){
@@ -980,6 +1096,7 @@ function handleXFile(file){
 }
 
 /* ---------- render ---------- */
+const soonAI=()=>'<div class="soon"><div class="soonic">'+IC_SPARK+'</div><div style="min-width:0"><div class="t">Asistente con IA <span class="protag">Próximamente · Pro</span></div><div class="s">Podrás preguntarle cualquier cosa sobre la app y te responderá al instante. Llegará con el plan de pago.</div></div></div>';
 const root=$("root");
 function filtered(){
   const q=ui.q.toLowerCase();
@@ -1014,7 +1131,9 @@ function render(){
   if(ui.onb){ renderOnb(); return; }
   const P=state.products, ro=mode==="readonly", al=alertCount();
   const title={inv:"Inventario",mov:"Movimientos",sum:"Resumen",set:"Ajustes"}[ui.tab];
-  let h='<div class="app"><div class="head'+(ui.anim?" swap":"")+'"><div class="headrow"><div class="brand"><h1'+(ro?'':' data-act="rename" role="button" tabindex="0" title="Cambiar nombre"')+'>'+esc(state.name)+'</h1><div class="sect">'+(IS_BETA?'<span class="betapill">BETA</span>':"")+title+(state.setup.owner?' · Hola, '+esc(firstName(state.setup.owner)):"")+'</div></div>'
+  let h='<div class="app"><div class="head'+(ui.anim?" swap":"")+'"><div class="headrow"><div class="brand">'+(ui.tab==="inv"
+      ?'<h1'+(ro?'':' data-act="rename" role="button" tabindex="0" title="Cambiar nombre"')+'>'+esc(state.name)+'</h1><div class="sect">'+(IS_BETA?'<span class="betapill">BETA</span>':"")+title+(state.setup.owner?' · Hola, '+esc(firstName(state.setup.owner)):"")+'</div>'
+      :'<h1>'+title+'</h1>'+(IS_BETA?'<div class="sect"><span class="betapill">BETA</span></div>':""))+'</div>'
     +(ui.tab==="inv"&&P.length?'<div class="vsw" role="group" aria-label="Vista de productos">'+VIEWS.map(v=>'<button type="button" data-view="'+v[0]+'" class="'+(ui.view===v[0]?"on":"")+'" aria-label="'+v[1]+'" title="'+v[1]+'"'+(ui.view===v[0]?' aria-pressed="true"':' aria-pressed="false"')+'>'+v[2]+'</button>').join("")+'</div>':"")+'</div>';
   if(ui.tab==="inv"){
     h+='<div class="search">'+SEARCH_SVG+'<input type="search" id="q" placeholder="Buscar nombre o código" value="'+esc(ui.q)+'" autocomplete="off"></div>';
@@ -1146,11 +1265,12 @@ function render(){
     if(!ro) h+='<h2 class="sec">Control de inventario</h2><div class="setbox"><div class="setrow"><div style="min-width:0"><div class="t">Toma de inventario</div><div class="s">Cuenta lo que hay y ajusta las diferencias.</div></div><button class="btn" data-act="count">Iniciar</button></div></div>';
     h+='<h2 class="sec">Datos</h2><div class="tools">'+(ro?"":'<label class="btn primary filebtn" style="grid-column:1/-1">Importar archivo Excel<input type="file" id="xfile" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"></label>')
       +'<button class="btn" data-act="xexport">Exportar a Excel</button>'+(ro?"":'<button class="btn" data-act="import">Pegar lista</button>')+'</div>'
+      +(ro?"":'<div class="setbox" style="margin-top:10px"><div class="setrow"><div style="min-width:0"><div class="t">Plantilla de Excel</div><div class="s">Copia tus productos en esta plantilla y la app los leerá sin errores.</div></div><button class="btn" data-act="xtpl">Descargar</button></div></div>')
       +'<div class="hint" style="margin-top:8px">El Excel exportado incluye una hoja de productos y otra con todos los movimientos.</div>';
     h+='<h2 class="sec">Respaldo</h2><div class="tools"><button class="btn" data-act="backup">Descargar respaldo</button>'+(ro?"":'<label class="btn filebtn">Restaurar respaldo<input type="file" id="rfile" accept=".json,application/json,text/plain"></label>')+'</div>'
       +'<div class="hint" style="margin-top:8px">El respaldo guarda todo: productos, fotos y movimientos. Conviene descargarlo cada cierto tiempo.</div>';
     h+='<h2 class="sec">Ayuda y sugerencias</h2><div class="stack">'
-      +(sampleApi?'<button class="btn primary helpb" data-act="assist">'+IC_SPARK+' Pregúntale al asistente</button>':"")
+      +soonAI()
       +'<div class="tools"><button class="btn" data-act="faq">Preguntas frecuentes</button><button class="btn" data-act="guide">Guía de uso</button></div>'
       +'<button class="btn" data-act="feedback">Enviar sugerencia o reportar un problema</button></div>'
       +'<div class="hint" style="margin-top:10px;text-align:center">Stok '+APP_VERSION+' · '+esc(platformName())+'</div>';
@@ -1320,7 +1440,7 @@ function renderModal(){
   let h='<div class="sheet-bg'+(enter?" enter":"")+'" data-act="close-bg"><div class="sheet">';
   if(m.kind==="product"){
     const p=m.id?prod(m.id):{sku:"",name:m.aiName||"",cat:m.aiCat||"",sizes:[],use:m.aiUse||"",sup:"",min:state.setup.alert||0,cost:0,price:0,unit:VT().unit,img:"",costHist:[],box:0};
-    const img=m.photo?m.photo.small:(m.removeImg?"":p.img);
+    const img=m.photo?m.photo.small:(m.removeImg?"":pimg(p));
     const imgBig=(!m.photo&&!m.removeImg&&p.imgId&&p.img.indexOf("data:")===0)?"/_blob/"+p.imgId:img;
     const lastC=p.costHist.length?p.costHist[p.costHist.length-1]:null;
     h+='<h2>'+(m.id?"Editar producto":"Nuevo producto")+'</h2><form id="f">'
@@ -1426,7 +1546,7 @@ function renderModal(){
   } else if(m.kind==="faq"){
     h+='<h2>Preguntas frecuentes</h2><div class="list faq" style="margin-bottom:12px">'+faqList().map(q=>'<details><summary>'+esc(q[0])+'</summary><p>'+esc(q[1])+'</p></details>').join("")+'</div>'
       +'<div class="hint" style="margin-bottom:12px">¿No encontraste lo que buscabas?</div>'
-      +'<div class="stack">'+(sampleApi?'<button class="btn primary helpb" data-act="assist">'+IC_SPARK+' Pregúntale al asistente</button>':"")+'<button class="btn" data-act="feedback" data-fbt="preg">Envíanos tu pregunta</button><button class="btn" data-act="close">Cerrar</button></div>';
+      +'<div class="stack"><button class="btn primary" data-act="feedback" data-fbt="preg">Envíanos tu pregunta</button><button class="btn" data-act="close">Cerrar</button></div>';
   } else if(m.kind==="assist"){
     h+='<h2 style="display:flex;align-items:center;gap:8px">'+IC_SPARK+' Asistente de Stok</h2>';
     if(!m.msgs.length) h+='<p class="hint" style="font-size:14px;margin-top:-6px">Pregúntame cómo hacer algo en la app. Por ejemplo:</p><div class="chips">'
@@ -1447,7 +1567,8 @@ function renderModal(){
       +(SUPPORT.whatsapp?'<button class="btn primary" data-act="fb-wa">Enviar por WhatsApp</button>':"")
       +(SUPPORT.email?'<button class="btn'+(SUPPORT.whatsapp?"":" primary")+'" data-act="fb-mail">Enviar por correo</button>':"")
       +'<button class="btn'+(SUPPORT.whatsapp||SUPPORT.email?"":" primary")+'" data-act="fb-copy">Copiar mensaje</button>'
-      +'<button class="btn" data-act="close">Cancelar</button></div>';
+      +'<button class="btn" data-act="close">Cancelar</button></div>'
+      +(SUPPORT.email?'<div class="hint" style="margin-top:10px;text-align:center">“Enviar por correo” abre tu app de correo con el mensaje listo para <b>'+esc(SUPPORT.email)+'</b>. Si no se abre, copia el mensaje y envíalo a esa dirección.</div>':"");
   } else if(m.kind==="alert"){
     h+='<h2>Aviso de stock bajo</h2><p class="hint" style="font-size:14px;margin-top:-6px">La app marca un producto como <b>stock bajo</b> y lo pone en la lista de compra cuando quedan esta cantidad o menos.</p>'
       +'<form id="f"><div class="field"><label>Avisar cuando queden</label><div class="stepper"><button type="button" data-astep="-1" aria-label="Restar">−</button><input type="number" inputmode="numeric" id="alertn" min="0" step="1" value="'+(state.setup.alert||0)+'"><button type="button" data-astep="1" aria-label="Sumar">+</button></div></div>'
@@ -1461,7 +1582,7 @@ function renderModal(){
       +'<div class="kpis" style="margin:0 0 12px"><div class="kpi"><div class="l">Productos</div><div class="v">'+nf.format(m.np)+'</div></div><div class="kpi"><div class="l">Filas ('+esc(vslow())+')</div><div class="v">'+nf.format(m.recs.length)+'</div></div></div>'
       +'<div class="hint" style="font-size:13px;margin-bottom:10px">'+(m.header?"Columnas reconocidas: <b>"+m.cols.map(k=>k==="size"?VT().v:k==="use"?VT().use:XLBL[k]).join(", ")+"</b>.":"No encontré una fila de títulos, así que usé el orden: Código, Nombre, Categoría, "+VT().v+", "+VT().use+", Stock, Stock mínimo, Costo, Precio, Proveedor.")+(m.skipped?" Se omitirán "+m.skipped+" filas sin nombre.":"")+'</div>'
       +'<div class="buyinfo" style="margin-bottom:10px">Antes de importar puedes <b>cambiar el nombre</b> de cada producto y <b>ponerle una foto</b>: toca el cuadro de la izquierda para elegirla.</div>'
-      +'<div class="list" style="margin-bottom:10px">'+m.groups.slice(0,300).map(g=>{ const ed=m.edit[g.k]||{}, ex=state.products.find(p=>g.sku?p.sku.toLowerCase()===g.sku.toLowerCase():p.name.toLowerCase()===g.name.toLowerCase()), img=ed.photo?ed.photo.small:(ex&&ex.img)||"";
+      +'<div class="list" style="margin-bottom:10px">'+m.groups.slice(0,300).map(g=>{ const ed=m.edit[g.k]||{}, ex=state.products.find(p=>g.sku?p.sku.toLowerCase()===g.sku.toLowerCase():p.name.toLowerCase()===g.name.toLowerCase()), img=ed.photo?ed.photo.small:pimg(ex);
           return '<div class="xrow"><label aria-label="Foto de '+esc(g.name)+'">'+(img?'<img src="'+esc(img)+'" alt="">':'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4Z"/><circle cx="12" cy="13" r="3.5"/></svg>')+'<input type="file" accept="image/*" class="xph" data-k="'+esc(g.k)+'"></label>'
             +'<div class="xg"><input type="text" class="xname" data-k="'+esc(g.k)+'" value="'+esc(ed.name!=null?ed.name:g.name)+'" aria-label="Nombre">'
             +'<small>'+esc([g.sku?"Cód. "+g.sku:"",g.cat,g.sizes.length?VT().vs+": "+g.sizes.join(", "):"",ex?"ya existe: se actualiza":"nuevo"].filter(Boolean).join(" · "))+'</small></div></div>'; }).join("")+'</div>'
@@ -1576,6 +1697,7 @@ root.addEventListener("click",e=>{
     if(jobs.length){ busy=true; toast("Guardando fotos…"); Promise.all(jobs).then(fin,fin); } else fin();
   }
   else if(a==="xexport") exportExcel();
+  else if(a==="xtpl") downloadTemplate();
   else if(a==="backup") backup();
   else if(a==="restore"){ state=ui.modal.data; normalize(); ui.modal=null; ui.tab="inv"; commit(); toast("Respaldo restaurado"); }
   else if(a==="buy"){ if(!state.buy.length&&needList().length){ buySuggested(); commit(); } ui.modal={kind:"buy",tab:"list"}; render(); }
@@ -1748,6 +1870,7 @@ if(IN_WEB){
 /* ---------- app de Android ---------- */
 const AND=window.AndroidApp||null;
 if(AND){
+  try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist().catch(()=>{}); }catch(e){}
   try{ Object.defineProperty(navigator,"clipboard",{configurable:true,value:{writeText:t=>{ AND.copy(String(t)); return Promise.resolve(); }}}); }catch(e){}
   const pend={}; let seq=0;
   window.__androidSaved=(id,ok,code)=>{ const pr=pend[id]; if(!pr) return; delete pend[id]; if(ok) pr.res(); else pr.rej({code:code||"failed"}); };
@@ -1777,10 +1900,12 @@ use("artifact").then(api=>{
   else {
     mode="local";
     try{ const s=localStorage.getItem(LS_KEY); if(s){ const o=JSON.parse(s); if(o&&o.products) state=o; } }catch(e){}
+    normalize();
+    return loadPhotos().then(()=>{ render(); maybeOnboard(); });
   }
   normalize(); render(); maybeOnboard();
 });
-if(typeof window!=="undefined") window.__inv={get state(){ return state; },ui:ui,importRows,rowsToRecs,recsToText,saveMove,voidMove,report,buyText,openMove,productRows,moveRows,applyProduct,render,startOnb,addSamples};
+if(typeof window!=="undefined") window.__inv={get state(){ return state; },saveLocal,loadPhotos,ui:ui,importRows,rowsToRecs,recsToText,saveMove,voidMove,report,buyText,openMove,productRows,moveRows,applyProduct,render,startOnb,addSamples};
 })();
 
 </script>
