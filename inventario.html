@@ -65,7 +65,7 @@ h1{font-size:24px;margin:0;letter-spacing:-.02em;background:linear-gradient(90de
 .search{position:relative;margin-top:10px}
 .search input[type=search]{padding-left:46px;height:48px;border-radius:14px}
 .search svg{position:absolute;left:14px;top:14px;color:var(--muted);pointer-events:none}
-input[type=text],input[type=number],input[type=search],select,textarea{background:var(--field);border:1px solid var(--line);border-radius:12px;padding:12px 13px;width:100%;outline:none;font-size:16px;-webkit-appearance:none;appearance:none}
+input[type=text],input[type=number],input[type=search],input[type=email],input[type=password],select,textarea{background:var(--field);border:1px solid var(--line);border-radius:12px;padding:12px 13px;width:100%;outline:none;font-size:16px;-webkit-appearance:none;appearance:none}
 input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .filters{display:flex;gap:8px;overflow-x:auto;padding:10px 14px 4px;margin:0 -14px;scrollbar-width:none}
 .filters::-webkit-scrollbar{display:none}
@@ -341,6 +341,9 @@ textarea.mono{font-family:ui-monospace,Menlo,monospace;font-size:13px}
 .chips button{border:1px solid var(--line);background:var(--field);border-radius:99px;padding:8px 12px;font-size:13px;font-weight:600;text-align:left}
 .askrow{display:flex;gap:8px}.askrow input{flex:1;min-width:0}.askrow .btn{flex:0 0 auto}
 .betapill{display:inline-block;vertical-align:1px;margin-right:6px;padding:1px 7px;border-radius:99px;background:#2563eb;color:#fff;font-size:10px;font-weight:700;letter-spacing:.06em}
+.cdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px;background:var(--muted)}.cdot.ok{background:#16a34a}.cdot.warn{background:#d97706}.cdot.busy{background:#60a5fa}
+.cchoice{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px}.cchoice .t{font-weight:700}.cchoice .s{font-size:13px;color:var(--muted);margin-top:2px}.cchoice .btn{width:100%;margin-top:10px}
+.onb-login{display:block;margin:18px auto 0;font-size:14px}
 .soon{display:flex;gap:12px;align-items:flex-start;background:var(--card);border:1px dashed var(--line);border-radius:var(--radius);padding:14px 16px}
 .soon .soonic{flex:none;width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--chip,rgba(118,82,210,.1));color:var(--muted)}
 .soon .t{font-weight:600;color:var(--muted)}.soon .s{font-size:13px;color:var(--muted);margin-top:2px}
@@ -565,7 +568,7 @@ function loadPhotos(){
   const work=photoDB().then(()=>refs.length?phTx("readonly",st=>{ const out={result:{}}; refs.forEach(p=>{ const k=p.img.slice(PH_REF.length), r=st.get(k); r.onsuccess=()=>{ out.result[k]=r.result; }; }); return out; }):{})
     .then(found=>{
       refs.forEach(p=>{ const k=p.img.slice(PH_REF.length), d=found[k];
-        if(isPhoto(d)){ p.img=d; phKeys.set(d,k); phSaved.add(k); } else p.img=""; });
+        if(isPhoto(d)){ p.img=d; phKeys.set(d,k); phSaved.add(k); } else if(!ses) p.img=""; });
       if(hasInline||refs.some(p=>!p.img)) setTimeout(saveLocal,0); // pasa las fotos antiguas a IndexedDB
       setTimeout(cleanPhotos,4000);
       if(late) render(); // llegaron después de mostrar la app
@@ -578,6 +581,177 @@ function cleanPhotos(){ // borra fotos que ya no usa ningún producto
   const used=new Set(state.products.map(p=>isPhoto(p.img)?photoKey(p.img):typeof p.img==="string"&&p.img.indexOf(PH_REF)===0?p.img.slice(PH_REF.length):"").filter(Boolean));
   if(state.products.some(p=>isPhoto(p.img)&&!phSaved.has(photoKey(p.img)))) return; // todavía guardando
   phTx("readwrite",st=>{ const r=st.getAllKeys(); r.onsuccess=()=>{ (r.result||[]).forEach(k=>{ if(!used.has(k)){ st.delete(k); phSaved.delete(k); } }); }; }).catch(()=>{});
+}
+
+/* ---------- cuenta y copia en la nube (Supabase, fase 1) ----------
+   Cada persona guarda una copia completa de su tienda (tabla "tiendas", una fila por versión normal/beta)
+   y sus fotos en una carpeta privada (Storage "fotos/<usuario>/<versión>/<clave>.jpg").
+   La app sigue funcionando sin internet: guarda primero en el teléfono y sube los cambios cuando puede.
+   La clave de abajo es pública por diseño; la seguridad la ponen las reglas del servidor (RLS). */
+const CLOUD={url:"https://fyywjxxyqtvieidtwepm.supabase.co",key:"sb_publishable_voaM8oYfQQMHkkQ01VgHuQ_GSGQXA70"};
+const CLOUD_OK=IN_WEB||IN_ANDROID; // dentro de Claude los datos se guardan en la propia página de Claude
+const SES_KEY="stok-sesion"+KEY_SUFFIX, NUBE_KEY="stok-nube"+KEY_SUFFIX, CH_DB=IS_BETA?"beta":"stable";
+const lsGet=k=>{ try{ return JSON.parse(localStorage.getItem(k)||"null"); }catch(e){ return null; } };
+const lsSet=(k,v)=>{ try{ if(v==null) localStorage.removeItem(k); else localStorage.setItem(k,JSON.stringify(v)); }catch(e){} };
+let ses=CLOUD_OK?lsGet(SES_KEY):null;   // sesión: {at, rt, exp, uid, email}
+let nube=lsGet(NUBE_KEY)||{};           // estado de la copia: {uid, id, v, at, dirty, hold, fotos:[claves ya subidas]}
+const cloud={st:"",busy:null,again:false,t:null,seq:0,last:0};
+const saveNube=()=>lsSet(NUBE_KEY,nube);
+const cloudErr=(code,msg,status)=>Object.assign(new Error(msg||code),{code:code,status:status||0});
+async function sbReq(path,o){
+  o=o||{}; const h=Object.assign({apikey:CLOUD.key},o.headers||{});
+  if(o.auth!==false) h.Authorization="Bearer "+await sbToken();
+  let body=o.body; if(body!=null&&!(body instanceof Blob)&&typeof body!=="string"){ body=JSON.stringify(body); h["Content-Type"]="application/json"; }
+  const ac=window.AbortController?new AbortController():null, to=setTimeout(()=>{ if(ac) ac.abort(); },o.timeout||25000);
+  let r; try{ r=await fetch(CLOUD.url+path,{method:o.method||"GET",headers:h,body:body,signal:ac?ac.signal:undefined,cache:"no-store"}); }
+  catch(e){ throw cloudErr("offline"); } finally{ clearTimeout(to); }
+  if(o.raw&&r.ok) return r;
+  const txt=await r.text(); let j=null; try{ j=txt?JSON.parse(txt):null; }catch(e){}
+  if(!r.ok){ const st=Number(j&&j.statusCode)||r.status; throw cloudErr(String((j&&(j.error_code||j.code||j.error))||("http_"+r.status)),(j&&(j.msg||j.message||j.error_description))||"",st); }
+  return j;
+}
+function setSession(j){
+  const u=j.user||{};
+  ses={at:j.access_token,rt:j.refresh_token,exp:Math.floor(Date.now()/1000)+(Number(j.expires_in)||3600),uid:u.id||(ses&&ses.uid),email:u.email||(ses&&ses.email)||""};
+  lsSet(SES_KEY,ses);
+}
+let refreshP=null;
+function sbToken(){
+  if(!ses) return Promise.reject(cloudErr("no_session"));
+  if(ses.exp-60>Date.now()/1000) return Promise.resolve(ses.at);
+  if(!refreshP) refreshP=sbReq("/auth/v1/token?grant_type=refresh_token",{method:"POST",auth:false,body:{refresh_token:ses.rt}})
+    .then(j=>{ setSession(j); return ses.at; },e=>{ if(e.code!=="offline"&&e.code!=="over_request_rate_limit"){ endSession(); render(); toast("Tu sesión se cerró. Entra de nuevo a tu cuenta en Ajustes."); } throw e; })
+    .then(v=>{ refreshP=null; return v; },e=>{ refreshP=null; throw e; });
+  return refreshP;
+}
+function endSession(){ ses=null; lsSet(SES_KEY,null); nube={}; saveNube(); cloud.st=""; }
+function authMsg(e){
+  const c=String(e&&e.code||"");
+  if(c==="offline") return "No hay conexión a internet. Inténtalo de nuevo cuando tengas señal.";
+  if(/invalid_credentials|invalid_grant/.test(c)) return "El correo o la contraseña no son correctos.";
+  if(/user_already_exists|email_exists/.test(c)) return "Ya existe una cuenta con ese correo. Toca “Entrar” y escribe tu contraseña.";
+  if(/weak_password/.test(c)) return "La contraseña es muy corta: usa al menos 6 caracteres.";
+  if(/email_address_invalid|validation_failed/.test(c)) return "Revisa que el correo esté bien escrito.";
+  if(/email_not_confirmed/.test(c)) return "Falta confirmar tu correo: abre el mensaje que te enviamos, toca el enlace y vuelve a intentarlo.";
+  if(/email_address_not_authorized|over_email_send_rate_limit/.test(c)) return "Por ahora no podemos crear cuentas con ese correo. Escríbenos desde Ajustes → Ayuda y sugerencias.";
+  if(/over_request_rate_limit/.test(c)) return "Demasiados intentos. Espera un minuto y vuelve a intentarlo.";
+  if(/signup_disabled/.test(c)) return "Por ahora no se pueden crear cuentas nuevas.";
+  return "No se pudo conectar con tu cuenta. Inténtalo de nuevo.";
+}
+async function authSubmit(kind,email,pass){
+  if(kind==="up"){
+    const j=await sbReq("/auth/v1/signup",{method:"POST",auth:false,body:{email:email,password:pass}});
+    if(!j||!j.access_token) return "confirm"; // el proyecto pide confirmar el correo
+    setSession(j);
+  } else setSession(await sbReq("/auth/v1/token?grant_type=password",{method:"POST",auth:false,body:{email:email,password:pass}}));
+  nube=nube.uid===ses.uid?nube:{}; saveNube();
+  return "ok";
+}
+const hasData=s=>!!(s&&((s.products&&s.products.length)||(s.moves&&s.moves.length)));
+const photoPath=k=>encodeURIComponent(ses.uid)+"/"+CH_DB+"/"+encodeURIComponent(k)+".jpg";
+function dataBlob(d){ const i=d.indexOf(","), mime=(d.slice(5,i).split(";")[0])||"image/jpeg", b=atob(d.slice(i+1)), a=new Uint8Array(b.length); for(let k=0;k<b.length;k++) a[k]=b.charCodeAt(k); return new Blob([a],{type:mime}); }
+const blobData=b=>new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(String(fr.result)); fr.onerror=()=>rej(fr.error); fr.readAsDataURL(b); });
+function snapshot(){ // la tienda tal como se guarda en el teléfono: fotos como referencia "idb:<clave>"
+  const fotos={};
+  const datos=JSON.parse(JSON.stringify(state,function(k,v){ if(k==="img"&&isPhoto(v)){ const key=photoKey(v); fotos[key]=v; return PH_REF+key; } return v; }));
+  return {datos:datos,fotos:fotos};
+}
+async function pushPhotos(fotos){
+  const up=new Set(nube.fotos||[]);
+  for(const k of Object.keys(fotos)){
+    if(up.has(k)) continue;
+    const b=dataBlob(fotos[k]);
+    await sbReq("/storage/v1/object/fotos/"+photoPath(k),{method:"POST",headers:{"x-upsert":"true","Content-Type":b.type},body:b});
+    up.add(k); nube.fotos=Array.from(up); saveNube();
+  }
+}
+async function cloudPush(remote){
+  const seq=cloud.seq, s=snapshot();
+  await pushPhotos(s.fotos);
+  const row={nombre:String(state.name||"Mi Tienda").slice(0,120),datos:s.datos,dispositivo:platformName().slice(0,120)}, pref={Prefer:"return=representation"};
+  let res;
+  if(remote){
+    res=await sbReq("/rest/v1/tiendas?id=eq."+remote.id+"&version=eq."+remote.version+"&select=id,version",{method:"PATCH",headers:pref,body:row});
+    if(!res||!res.length) return "conflict"; // otro teléfono guardó antes
+  } else { row.canal=CH_DB; res=await sbReq("/rest/v1/tiendas?select=id,version",{method:"POST",headers:pref,body:row}); }
+  nube.uid=ses.uid; nube.id=res[0].id; nube.v=res[0].version; nube.at=Date.now(); nube.dirty=cloud.seq!==seq; nube.hold=false; saveNube();
+  return "ok";
+}
+const cloudFull=id=>sbReq("/rest/v1/tiendas?id=eq."+id+"&select=id,version,nombre,datos,dispositivo,actualizada").then(r=>r&&r[0]);
+async function cloudPull(row){
+  const keep=nube.uid===ses.uid?nube.fotos:[];
+  state=row.datos&&typeof row.datos==="object"?row.datos:{}; normalize();
+  try{ await loadPhotos(); }catch(e){}
+  nube={uid:ses.uid,id:row.id,v:row.version,at:Date.now(),dirty:false,hold:false,fotos:keep||[]}; saveNube();
+  saveLocal();
+  await cloudPhotos();
+}
+async function cloudPhotos(){ // fotos que este teléfono todavía no tiene: se bajan de la nube
+  if(!ses) return;
+  const miss=state.products.filter(p=>typeof p.img==="string"&&p.img.indexOf(PH_REF)===0);
+  if(!miss.length) return;
+  const got=[], up=new Set(nube.fotos||[]);
+  await Promise.all(miss.map(async p=>{ const k=p.img.slice(PH_REF.length);
+    try{ const r=await sbReq("/storage/v1/object/authenticated/fotos/"+photoPath(k),{raw:true}); const d=await blobData(await r.blob());
+      if(isPhoto(d)){ p.img=d; phKeys.set(d,k); got.push([k,d]); up.add(k); } }
+    catch(e){ if(e.status===404||e.status===400||/not_found/i.test(e.code)) p.img=""; } }));
+  nube.fotos=Array.from(up); saveNube();
+  if(got.length&&phOK!==false){ try{ await phTx("readwrite",st=>{ got.forEach(([k,v])=>st.put(v,k)); }); got.forEach(([k])=>phSaved.add(k)); }catch(e){} }
+  saveLocal(); if(!ui.onb) render();
+}
+async function askConflict(r,first){
+  const full=await cloudFull(r.id); if(!full) return;
+  if(!hasData(full.datos)){ if(await cloudPush(full)==="conflict") cloud.again=true; return; } // la de la nube está vacía
+  nube.hold=true; saveNube(); cloud.st="hold";
+  if(ui.onb){ ui.onbSaved=ui.onbSaved||ui.onb; ui.onb=null; }
+  ui.modal={kind:"cloudc",remote:full,first:!!first}; render();
+}
+function cloudSync(opt){
+  opt=opt||{};
+  if(!ses||!CLOUD_OK||mode!=="local") return Promise.resolve();
+  if(cloud.busy){ cloud.again=true; return cloud.busy; }
+  cloud.st="sync"; cloudPaint();
+  cloud.busy=(async()=>{
+    try{
+      if(nube.uid&&nube.uid!==ses.uid){ nube={}; saveNube(); }   // otra cuenta en este teléfono
+      const rows=await sbReq("/rest/v1/tiendas?canal=eq."+CH_DB+"&select=id,version,nombre,dispositivo,actualizada");
+      const r=rows&&rows[0]||null; cloud.st="ok";
+      if(!r){ if(hasData(state)||state.setup.type) await cloudPush(null); }
+      else if(nube.id!==r.id){ // primera vez con esta cuenta en este teléfono
+        if(!hasData(state)) await cloudPull(await cloudFull(r.id)); else await askConflict(r,true);
+      } else if(r.version===nube.v){
+        if(nube.dirty&&(!nube.hold||opt.force)&&await cloudPush(r)==="conflict") cloud.again=true;
+      } else if(nube.dirty){ await askConflict(r,false); }
+      else if(!ui.onb&&(!ui.modal||opt.force)){ await cloudPull(await cloudFull(r.id)); if(!opt.quiet) toast("Tu tienda se actualizó con los cambios de tu otro teléfono"); }
+      cloud.last=Date.now();
+    }catch(e){ cloud.st=e.code==="offline"?"off":e.code==="no_session"?"":"error"; }
+  })().then(()=>{ cloud.busy=null; cloudPaint(); if(cloud.again){ cloud.again=false; setTimeout(()=>cloudSync(),400); } });
+  return cloud.busy;
+}
+function cloudTouch(){ // se llama en cada cambio guardado
+  if(!ses||!CLOUD_OK) return;
+  cloud.seq++; if(!nube.dirty){ nube.dirty=true; saveNube(); }
+  if(nube.hold) return;
+  clearTimeout(cloud.t); cloud.t=setTimeout(()=>cloudSync(),2500);
+}
+function agoTxt(t){ const m=Math.round((Date.now()-t)/60000); return m<1?"recién":m<60?"hace "+m+" min":m<1440?"hace "+Math.round(m/60)+" h":new Date(t).toLocaleDateString("es-CL",{day:"numeric",month:"short"}); }
+function cloudStatus(){
+  if(nube.hold) return '<span class="cdot warn"></span>Hay cambios en otro teléfono. <button class="linkb" data-act="cc-open">Elegir qué conservar</button>';
+  if(cloud.st==="sync") return '<span class="cdot busy"></span>Guardando en la nube…';
+  if(cloud.st==="off") return '<span class="cdot warn"></span>Sin conexión: se guardará cuando vuelva internet.';
+  if(cloud.st==="error") return '<span class="cdot warn"></span>No se pudo guardar en la nube. Se volverá a intentar.';
+  if(nube.dirty) return '<span class="cdot busy"></span>Cambios por guardar…';
+  return nube.at?'<span class="cdot ok"></span>Guardado en la nube · '+agoTxt(nube.at):'<span class="cdot busy"></span>Conectando…';
+}
+function cloudPaint(){ const el=$("cloudst"); if(el) el.innerHTML=cloudStatus(); }
+if(CLOUD_OK){
+  window.addEventListener("online",()=>{ if(ses) cloudSync(); });
+  document.addEventListener("visibilitychange",()=>{
+    if(!ses||mode!=="local") return;
+    if(document.visibilityState==="hidden"){ if(nube.dirty&&!nube.hold){ clearTimeout(cloud.t); cloudSync(); } }
+    else if(Date.now()-cloud.last>60000) cloudSync();
+  });
+  setInterval(()=>cloudPaint(),60000);
 }
 
 /* ---------- guardado ---------- */
@@ -598,7 +772,7 @@ function restoreUI(){ let o=null; try{ o=JSON.parse(sessionStorage.getItem(UI_KE
 function commit(){
   render();
   if(mode==="readonly") return;
-  if(mode!=="shared"){ saveLocal(); return; }
+  if(mode!=="shared"){ saveLocal(); cloudTouch(); return; }
   clearTimeout(saveTimer);
   saveTimer=setTimeout(()=>{
     saveUI();
@@ -825,8 +999,8 @@ function faqList(){
     ["¿Cómo cambio cuándo me avisa de stock bajo?","En Ajustes → Aviso de stock bajo eliges desde cuántas unidades avisar. Cada producto también puede tener su propio mínimo (y cada "+v+" el suyo)."],
     ["¿Cómo paso mis productos desde Excel?","En Ajustes → Importar archivo Excel. La app reconoce las columnas; antes de importar puedes cambiar el nombre y poner foto a cada producto."],
     ["¿Qué es el cierre de caja?","En Resumen ves cuánto vendiste hoy (o en 7 días, el mes o todo) separado por medio de pago: efectivo, débito, crédito y transferencia. Sirve para cuadrar la caja al final del día."],
-    ["¿Dónde se guardan mis datos? ¿Cómo no perderlos?","Por ahora se guardan en este dispositivo. Descarga un respaldo cada cierto tiempo en Ajustes → Descargar respaldo y guárdalo en tu correo o en la nube."],
-    ["¿Cómo paso mi inventario a otro teléfono?","En el teléfono actual: Ajustes → Descargar respaldo. En el nuevo: Ajustes → Restaurar respaldo y eliges ese archivo."],
+    ["¿Dónde se guardan mis datos? ¿Cómo no perderlos?",CLOUD_OK?"En este teléfono y, si creas una cuenta en Ajustes → Tu cuenta, también en la nube: cada cambio se guarda solo. Sin cuenta, descarga un respaldo cada cierto tiempo en Ajustes → Descargar respaldo.":"Por ahora se guardan en este dispositivo. Descarga un respaldo cada cierto tiempo en Ajustes → Descargar respaldo y guárdalo en tu correo o en la nube."],
+    ["¿Cómo paso mi inventario a otro teléfono?",(CLOUD_OK?"Lo más fácil: crea una cuenta en Ajustes → Tu cuenta y, en el teléfono nuevo, entra con el mismo correo y contraseña. También puedes hacerlo con un respaldo: ":"")+"En el teléfono actual: Ajustes → Descargar respaldo. En el nuevo: Ajustes → Restaurar respaldo y eliges ese archivo."],
     ["¿Cómo la instalo en el iPhone?","Abre reokip.github.io/Inventario en Safari, toca Compartir (el cuadro con flecha) y luego “Agregar a pantalla de inicio”."]
   ];
 }
@@ -1249,6 +1423,13 @@ function render(){
       h+='<div class="acct"><div class="av"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5"/></svg></div><div style="min-width:0"><div class="n">'+(mode==="loading"?"Cargando…":"Sin sesión")+'</div><div class="e" style="white-space:normal">'+(mode==="loading"?"":"Abre la app desde su enlace en Claude para ver tu cuenta.")+'</div></div></div>';
     }
     }
+    else if(CLOUD_OK){
+      h+='<h2 class="sec">Tu cuenta</h2>';
+      if(ses) h+='<div class="acct"><div class="av" style="font-weight:700;font-size:22px">'+esc((ses.email||"?").charAt(0).toUpperCase())+'</div><div style="min-width:0"><div class="n">'+esc(ses.email||"Tu cuenta")+'</div><div class="e" id="cloudst" style="white-space:normal">'+cloudStatus()+'</div></div></div>'
+        +'<div class="tools" style="margin-top:10px"><button class="btn" data-act="cloud-now">Guardar ahora</button><button class="btn" data-act="logout">Cerrar sesión</button></div>';
+      else h+='<div class="setbox"><div class="t" style="font-weight:600">Guarda tu tienda en la nube</div><div class="s" style="font-size:13px;color:var(--muted);margin-top:4px">Con una cuenta, tu inventario queda respaldado solo y puedes abrirlo en otro teléfono.</div>'
+        +'<div class="tools" style="margin-top:12px"><button class="btn primary" data-act="auth-up">Crear cuenta</button><button class="btn" data-act="auth-in">Entrar</button></div></div>';
+    }
     h+='<h2 class="sec">Apariencia</h2><div class="setbox"><div class="t" style="font-weight:600">Modo de la aplicación</div><div class="seg tseg" role="radiogroup" aria-label="Modo de la aplicación" style="--i:'+(ui.thFrom!=null?ui.thFrom:(theme==="dark"?1:0))+'"><span class="segthumb"></span>'
       +'<button type="button" role="radio" aria-checked="'+(theme==="light")+'" data-theme-set="light" class="'+(theme==="light"?"on":"")+'"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>Claro</button>'
       +'<button type="button" role="radio" aria-checked="'+(theme==="dark")+'" data-theme-set="dark" class="'+(theme==="dark"?"on":"")+'"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></svg>Oscuro</button></div></div>';
@@ -1373,6 +1554,28 @@ function finishOnb(){
   ui.tab="inv"; commit();
   toast(o.kind==="profile"?"Datos actualizados":"¡Listo, "+firstName(state.setup.owner)+"!"+(n?" Se agregaron "+n+" ejemplos.":""));
 }
+function authForm(f){
+  const m=ui.modal, email=f.email.value.trim().toLowerCase(), pass=f.pass.value; m.email=email; m.err="";
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ m.err="Escribe tu correo (ej.: nombre@gmail.com)."; render(); return; }
+  if(pass.length<6){ m.err=m.tab==="up"?"La contraseña debe tener al menos 6 caracteres.":"Escribe tu contraseña."; render(); return; }
+  busy=true; const b=$("fsub"); if(b){ b.disabled=true; b.textContent="Conectando…"; }
+  authSubmit(m.tab,email,pass).then(r=>{
+    busy=false;
+    if(r==="confirm"){ m.sent=email; m.tab="in"; render(); return; }
+    ui.modal=null; render(); toast(m.tab==="up"?"¡Cuenta creada! Guardando tu tienda…":"Sesión iniciada");
+    return cloudSync({force:true,quiet:true}).then(()=>{
+      if(ui.modal) return; // hay que elegir qué versión conservar
+      if(ui.onbSaved){ if(state.setup.type){ ui.onbSaved=null; ui.tab="inv"; toast("¡Listo! Tu tienda ya está en este teléfono"); } else { ui.onb=ui.onbSaved; ui.onbSaved=null; toast("Cuenta lista. Ahora configura tu tienda."); } }
+      render();
+    });
+  },err=>{ busy=false; m.err=authMsg(err); render(); });
+}
+function closeModal(){
+  const m=ui.modal; ui.modal=null;
+  if(m&&m.kind==="cloudc"&&ses){ nube.hold=true; saveNube(); }
+  if(ui.onbSaved){ if(!state.setup.type) ui.onb=ui.onbSaved; ui.onbSaved=null; }
+  render();
+}
 function renderOnb(){
   const o=ui.onb, step=o.seq[o.i], st=STYPES[o.type]||STDEF, nm=esc(firstName(o.owner));
   const vs=esc(st.vs.toLowerCase());
@@ -1382,7 +1585,8 @@ function renderOnb(){
   if(step===0){
     h+='<div class="onb-hero">'+LOGO_SVG(40)+'</div><h2>Bienvenido a <span class="grad">Stok</span></h2>'
       +'<p class="lead">Tu inventario en el bolsillo. Lleva el control de tus productos, ventas y stock desde el celular. Te haremos un par de preguntas para dejar la app a tu medida y luego te mostramos cómo usarla. Toma menos de un minuto.</p>'
-      +'<div class="tips">'+tip(HERO.box.replace(/38/g,"18"),"Tus productos","Con foto, precio, costo y stock.")+tip(HERO.cart.replace(/38/g,"18"),"Ventas y entradas","Registra cada venta o compra en segundos.")+tip(HERO.chart.replace(/38/g,"18"),"Resumen claro","Cuánto vendiste, tu margen y qué reponer.")+'</div>';
+      +'<div class="tips">'+tip(HERO.box.replace(/38/g,"18"),"Tus productos","Con foto, precio, costo y stock.")+tip(HERO.cart.replace(/38/g,"18"),"Ventas y entradas","Registra cada venta o compra en segundos.")+tip(HERO.chart.replace(/38/g,"18"),"Resumen claro","Cuánto vendiste, tu margen y qué reponer.")+'</div>'
+      +(CLOUD_OK&&!ses?'<button type="button" class="linkb onb-login" data-onb="login">¿Ya usas Stok en otro teléfono? Entra a tu cuenta</button>':"");
   } else if(step===1){
     h+='<div class="onb-hero">'+HERO.user+'</div><h2>'+(o.kind==="profile"?"Tus datos":"Cuéntanos de ti")+'</h2><p class="lead">Así personalizamos la app para ti.</p>'
       +'<form id="onbf"><div class="field"><label>¿Cómo te llamas?</label><input type="text" id="ob-owner" value="'+esc(o.owner)+'" placeholder="Tu nombre" autocomplete="given-name" maxlength="40"></div>'
@@ -1555,6 +1759,26 @@ function renderModal(){
       +'<form id="asf" class="askrow"><input type="text" id="asq" placeholder="Escribe tu pregunta" autocomplete="off" maxlength="400"'+(m.busy?" disabled":"")+'><button class="btn primary" type="submit"'+(m.busy?" disabled":"")+'>Enviar</button></form>'
       +'<div class="hint" style="margin-top:10px">Las respuestas las genera Claude y pueden equivocarse. ¿Encontraste un error? <button class="linkb" data-act="feedback" data-fbt="prob">Repórtalo aquí</button>.</div>'
       +'<div class="mfoot" style="margin-top:12px"><button class="btn" data-act="close">Cerrar</button></div>';
+  } else if(m.kind==="auth"){
+    const up=m.tab==="up";
+    h+='<h2>'+(up?"Crear tu cuenta":"Entrar a tu cuenta")+'</h2>'
+      +'<div class="seg" style="margin-bottom:12px"><button type="button" data-act="auth-tab" data-t="in" class="'+(up?"":"on")+'">Entrar</button><button type="button" data-act="auth-tab" data-t="up" class="'+(up?"on":"")+'">Crear cuenta</button></div>'
+      +(m.sent?'<div class="buyinfo" style="margin-bottom:12px">Te enviamos un correo a <b>'+esc(m.sent)+'</b>. Ábrelo y toca el enlace para confirmar tu cuenta. Después vuelve aquí y toca <b>Entrar</b>.</div>'
+        :'<p class="hint" style="font-size:14px;margin-top:0">'+(up?"Tu inventario se guardará en la nube y podrás abrirlo en otro teléfono. Solo tú puedes verlo.":"Usa el correo y la contraseña de tu cuenta de Stok.")+'</p>')
+      +'<form id="f"><div class="field"><label>Correo</label><input type="email" name="email" id="aemail" value="'+esc(m.email||"")+'" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" maxlength="120"></div>'
+      +'<div class="field"><label>Contraseña</label><input type="password" name="pass" id="apass" autocomplete="'+(up?"new-password":"current-password")+'" maxlength="72">'+(up?'<div class="hint">Al menos 6 caracteres.</div>':"")+'</div>'
+      +(m.err?'<div class="err">'+esc(m.err)+'</div>':"")
+      +'<div class="mfoot"><button type="button" class="btn" data-act="close">Cancelar</button><button class="btn primary" type="submit" id="fsub">'+(up?"Crear cuenta":"Entrar")+'</button></div></form>';
+  } else if(m.kind==="logout"){
+    h+='<h2>¿Cerrar sesión?</h2><p class="hint" style="font-size:14px;margin-top:-4px">Tu inventario se queda en este teléfono. Para volver a guardarlo en la nube, entra de nuevo con '+esc(ses?ses.email:"tu cuenta")+'.</p>'
+      +'<div class="mfoot"><button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="logout-ok">Cerrar sesión</button></div>';
+  } else if(m.kind==="cloudc"){
+    const R=m.remote||{}, rd=R.datos||{}, rp=(rd.products||[]).length, rm=(rd.moves||[]).length;
+    h+='<h2>'+(m.first?"Ya tienes una tienda en tu cuenta":"Tu tienda cambió en otro teléfono")+'</h2>'
+      +'<p class="hint" style="font-size:14px;margin-top:-4px">'+(m.first?"En tu cuenta y en este teléfono hay inventarios distintos. Elige cuál quieres usar; el otro se reemplaza.":"Se hicieron cambios en otro teléfono y también en este. Elige cuál versión conservar; la otra se reemplaza.")+'</p>'
+      +'<div class="cchoice"><div class="t">☁️ En tu cuenta</div><div class="s">'+esc(R.nombre||rd.name||"Mi Tienda")+' · '+nf.format(rp)+' productos · '+nf.format(rm)+' movimientos</div><div class="s">Guardada '+(R.actualizada?new Date(R.actualizada).toLocaleString("es-CL",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}):"")+(R.dispositivo?" desde "+esc(R.dispositivo):"")+'</div><button class="btn primary" data-act="cc-cloud">Usar la de mi cuenta</button></div>'
+      +'<div class="cchoice"><div class="t">📱 En este teléfono</div><div class="s">'+esc(state.name)+' · '+nf.format(state.products.length)+' productos · '+nf.format(state.moves.length)+' movimientos</div><button class="btn" data-act="cc-local">Usar la de este teléfono</button></div>'
+      +'<div class="hint" style="margin-top:4px">Si no estás seguro, descarga primero un respaldo en Ajustes. <button class="linkb" data-act="close">Decidir después</button></div>';
   } else if(m.kind==="feedback"){
     const ty=m.type||"sug";
     h+='<h2>'+(ty==="prob"?"Reportar un problema":ty==="preg"?"Enviar una pregunta":"Enviar una sugerencia")+'</h2>'
@@ -1625,6 +1849,7 @@ root.addEventListener("click",e=>{
     else if(d.onb==="back"){ syncOnb(); o.err=""; o.i=Math.max(0,o.i-1); render(); }
     else if(d.onb==="skip"){ syncOnb(); o.err=""; o.i=o.seq.length-1; render(); }
     else if(d.onb==="close"){ ui.onb=null; render(); }
+    else if(d.onb==="login"){ syncOnb(); ui.onbSaved=o; ui.onb=null; ui.modal={kind:"auth",tab:"in",email:""}; render(); }
     return; }
   if(d.otype){ ui.onb.type=d.otype; ui.onb.err=""; render(); return; }
   if(d.themeSet){ if(d.themeSet!==theme){ ui.thFrom=theme==="dark"?1:0; setTheme(d.themeSet); } return; }
@@ -1643,8 +1868,8 @@ root.addEventListener("click",e=>{
   if(d.vstep){ const inp=document.querySelector('.vq[data-size="'+(window.CSS&&CSS.escape?CSS.escape(d.size):d.size)+'"]'); if(inp){ inp.value=Math.max(0,numPlain(inp.value)+Number(d.vstep)); syncMove(); updMoveTotals(); } return; }
   if(d.step){ const qi=$("qty"); if(qi){ qi.value=Math.max(0,numPlain(qi.value)+Number(d.step)); syncMove(); updMoveTotals(); } return; }
   const a=d.act, id=d.id;
-  if(a==="close-bg"){ if(e.target===t){ ui.modal=null; render(); } return; }
-  if(a==="close"){ ui.modal=null; render(); }
+  if(a==="close-bg"){ if(e.target===t) closeModal(); return; }
+  if(a==="close") closeModal();
   else if(a==="new"){ ui.modal={kind:"product"}; render(); }
   else if(a==="edit"){ ui.modal={kind:"product",id:id}; render(); }
   else if(a==="in"||a==="out"||a==="adj") openMove(id,a);
@@ -1698,6 +1923,26 @@ root.addEventListener("click",e=>{
   }
   else if(a==="xexport") exportExcel();
   else if(a==="xtpl") downloadTemplate();
+  else if(a==="auth-in"||a==="auth-up"){ ui.modal={kind:"auth",tab:a==="auth-up"?"up":"in",email:""}; render(); setTimeout(()=>{ const i=$("aemail"); if(i) i.focus(); },250); }
+  else if(a==="auth-tab"){ const m=ui.modal, em=$("aemail"); if(em) m.email=em.value; m.tab=d.t; m.err=""; m.sent=""; render(); }
+  else if(a==="cloud-now"){ if(nube.hold) cloudSync({force:true}); else { nube.dirty=nube.dirty||!nube.at; cloudSync({force:true}).then(()=>{ if(cloud.st==="ok"&&!nube.hold) toast("Tu tienda está guardada en la nube"); }); } }
+  else if(a==="logout"){ ui.modal={kind:"logout"}; render(); }
+  else if(a==="logout-ok"){
+    busy=true; const s0=ses;
+    (nube.dirty&&!nube.hold?cloudSync({force:true}):Promise.resolve())
+      .then(()=>sbReq("/auth/v1/logout",{method:"POST"}).catch(()=>{}))
+      .then(()=>{ busy=false; if(ses===s0) endSession(); ui.modal=null; render(); toast("Sesión cerrada. Tu inventario sigue en este teléfono."); });
+  }
+  else if(a==="cc-open"){ cloudSync({force:true}); }
+  else if(a==="cc-cloud"||a==="cc-local"){
+    const m=ui.modal, R=m.remote; busy=true;
+    const job=a==="cc-cloud"?cloudPull(R).then(()=>"ok"):cloudPush({id:R.id,version:R.version});
+    job.then(r=>{ busy=false;
+      if(r==="conflict"){ ui.modal=null; render(); cloudSync({force:true}); return; }
+      ui.modal=null; if(ui.onbSaved){ if(state.setup.type) ui.onbSaved=null; else { ui.onb=ui.onbSaved; ui.onbSaved=null; } }
+      render(); cloudPaint(); toast(a==="cc-cloud"?"Listo: estás usando la tienda de tu cuenta":"Listo: tu cuenta ahora tiene la tienda de este teléfono"); },
+      e=>{ busy=false; toast(e&&e.code==="offline"?"Sin conexión. Inténtalo cuando tengas internet.":"No se pudo completar. Inténtalo de nuevo."); });
+  }
   else if(a==="backup") backup();
   else if(a==="restore"){ state=ui.modal.data; normalize(); ui.modal=null; ui.tab="inv"; commit(); toast("Respaldo restaurado"); }
   else if(a==="buy"){ if(!state.buy.length&&needList().length){ buySuggested(); commit(); } ui.modal={kind:"buy",tab:"list"}; render(); }
@@ -1734,6 +1979,7 @@ root.addEventListener("submit",e=>{
   e.preventDefault(); if(busy) return;
   if(e.target.id==="onbf"){ onbNext(); return; }
   if(e.target.id==="asf"){ assistSend(); return; }
+  if(ui.modal&&ui.modal.kind==="auth"){ authForm(e.target); return; }
   const f=e.target, m=ui.modal; let err=null;
   if(m.kind==="product"){
     const r=readProductForm(f,m.id);
@@ -1884,7 +2130,7 @@ if(AND){
   })};
   window.__androidBack=()=>{
     if(busy) return true;
-    if(ui.modal){ ui.modal=null; render(); return true; }
+    if(ui.modal){ closeModal(); return true; }
     if(ui.onb){ if(ui.onb.i>0){ syncOnb(); ui.onb.err=""; ui.onb.i--; render(); return true; } if(ui.onb.kind!=="full"){ ui.onb=null; render(); return true; } return false; }
     if(ui.tab!=="inv"){ ui.anim="l"; ui.prevTab=ui.tab; ui.tab="inv"; render(); window.scrollTo(0,0); return true; }
     return false;
@@ -1901,11 +2147,11 @@ use("artifact").then(api=>{
     mode="local";
     try{ const s=localStorage.getItem(LS_KEY); if(s){ const o=JSON.parse(s); if(o&&o.products) state=o; } }catch(e){}
     normalize();
-    return loadPhotos().then(()=>{ render(); maybeOnboard(); });
+    return loadPhotos().then(()=>{ render(); maybeOnboard(); if(ses){ cloudPhotos().then(()=>cloudSync({quiet:false})); } });
   }
   normalize(); render(); maybeOnboard();
 });
-if(typeof window!=="undefined") window.__inv={get state(){ return state; },saveLocal,loadPhotos,ui:ui,importRows,rowsToRecs,recsToText,saveMove,voidMove,report,buyText,openMove,productRows,moveRows,applyProduct,render,startOnb,addSamples};
+if(typeof window!=="undefined") window.__inv={get state(){ return state; },get ses(){ return ses; },get nube(){ return nube; },cloud,cloudSync,saveLocal,loadPhotos,ui:ui,importRows,rowsToRecs,recsToText,saveMove,voidMove,report,buyText,openMove,productRows,moveRows,applyProduct,render,startOnb,addSamples};
 })();
 
 </script>
