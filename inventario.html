@@ -353,6 +353,12 @@ textarea.mono{font-family:ui-monospace,Menlo,monospace;font-size:13px}
 .onb-foot.col{flex-direction:column}.onb-foot.col .btn{flex:none;width:100%}
 .onb-guest{align-self:center;font-size:15px;padding:8px 12px;text-decoration:none;color:var(--muted)}
 @media (max-height:700px){.onb-body:has(.onb-brand){padding:6px 0 12px}.onb-hero.big{width:64px;height:64px;border-radius:20px;margin-bottom:8px}.onb-hero.big svg{width:36px;height:36px}.onb-name{font-size:36px;margin-bottom:6px}.onb-brand .lead{font-size:15px;margin-bottom:12px}.onb-perks{gap:6px}.onb-perks li{padding:7px 12px;font-size:14px}.onb-foot.col{gap:8px}.onb-foot.col .btn{min-height:46px}.onb-guest{padding:4px 12px}}
+.pvbox{margin:-2px 0 12px}.pvbox .s{font-size:13px;color:var(--muted)}
+.pvbar{position:fixed;z-index:60;top:calc(var(--sat) + 6px);left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;max-width:calc(100% - 20px);background:#2563eb;color:#fff;border-radius:999px;padding:5px 5px 5px 12px;font-size:13px;font-weight:600;box-shadow:0 6px 18px rgba(37,99,235,.35);white-space:nowrap}
+.pvbar span{overflow:hidden;text-overflow:ellipsis}
+.pvbar button{flex:none;border:none;border-radius:999px;background:#fff;color:#2563eb;font:inherit;font-weight:700;padding:5px 12px;cursor:pointer}
+html.preview .head{padding-top:calc(var(--sat) + 48px)}
+html.preview .onb{padding-top:calc(var(--sat) + 52px)}
 .nudge{display:flex;gap:10px;align-items:center;background:var(--accent-soft);border-radius:14px;padding:12px 10px 12px 14px;margin:2px 0 12px}
 .nudge>div{flex:1}.nudge b{display:block;font-size:15px}.nudge span{display:block;font-size:13px;color:var(--muted);margin-top:2px}
 .nudge .btn{flex:none;min-height:40px;padding:8px 12px;white-space:nowrap}
@@ -378,7 +384,11 @@ html[data-theme="dark"] .banner.beta{color:#8ec5ff}
    La beta guarda sus datos con otras claves, así nunca toca el inventario de la versión normal. */
 const BUILD_CHANNEL="";
 const CHANNEL=BUILD_CHANNEL||(/\/beta\//.test(location.pathname)?"beta":"stable");
-const IS_BETA=CHANNEL==="beta", KEY_SUFFIX=IS_BETA?"-beta":"";
+const IS_BETA=CHANNEL==="beta";
+/* Vista previa "desde cero" (solo beta): la app usa otro espacio de guardado, vacío, como si se instalara
+   por primera vez. Los datos de la beta, la sesión y las fotos quedan intactos y vuelven al salir. */
+const PV_FLAG="stok-vista-previa", PREVIEW=IS_BETA&&(function(){ try{ return localStorage.getItem(PV_FLAG)==="1"; }catch(e){ return false; } })();
+const KEY_SUFFIX=IS_BETA?(PREVIEW?"-beta-previa":"-beta"):"";
 const LS_KEY="inventario-app-v1"+KEY_SUFFIX, TH_KEY="inventario-tema"+KEY_SUFFIX;
 const REASONS_OUT=[["venta","Venta"],["merma","Merma o daño"],["robo","Robo o pérdida"],["regalo","Regalo o muestra"],["interno","Uso interno"],["devprov","Devolución a proveedor"]];
 const REASONS_IN=[["compra","Compra a proveedor"],["devcli","Devolución de cliente"],["otro","Otro ingreso"]];
@@ -757,6 +767,20 @@ function cloudStatus(){
   return nube.at?'<span class="cdot ok"></span>Guardado en la nube · '+agoTxt(nube.at):'<span class="cdot busy"></span>Conectando…';
 }
 const NUDGE_KEY="stok-recordatorio"+KEY_SUFFIX;
+function previewClear(){ // borra solo lo guardado durante la vista previa
+  try{ Object.keys(localStorage).filter(k=>/-beta-previa$/.test(k)).forEach(k=>localStorage.removeItem(k)); }catch(e){}
+  try{ Object.keys(sessionStorage).filter(k=>/-beta-previa$/.test(k)).forEach(k=>sessionStorage.removeItem(k)); }catch(e){}
+  return new Promise(res=>{ try{ if(phDB&&PREVIEW) phDB.then(db=>db.close(),()=>{}); const r=indexedDB.deleteDatabase("stok-fotos-beta-previa"); r.onsuccess=r.onerror=r.onblocked=()=>res(); setTimeout(res,1500); }catch(e){ res(); } });
+}
+function previewStart(){ previewClear().then(()=>{ try{ localStorage.setItem(PV_FLAG,"1"); }catch(e){} location.reload(); }); }
+function previewEnd(){ previewClear().then(()=>{ try{ localStorage.removeItem(PV_FLAG); }catch(e){} location.reload(); }); }
+if(PREVIEW){
+  document.documentElement.classList.add("preview");
+  const bar=document.createElement("div"); bar.className="pvbar";
+  bar.innerHTML='<span>👁 Vista previa: así ve Stok alguien nuevo</span><button type="button">Salir</button>';
+  bar.querySelector("button").addEventListener("click",()=>{ bar.querySelector("button").disabled=true; previewEnd(); });
+  document.body.appendChild(bar);
+}
 function nudgeOn(){ if(!CLOUD_OK||ses||mode!=="local"||state.products.length<10) return false; const t=Number(lsGet(NUDGE_KEY))||0; return Date.now()-t>14*864e5; }
 function cloudPaint(){ const el=$("cloudst"); if(el) el.innerHTML=cloudStatus(); }
 if(CLOUD_OK){
@@ -1339,7 +1363,9 @@ function render(){
   const anim=ui.anim; ui.anim=null;
   h+='<div class="tabc'+(anim?" in-"+anim:"")+'">';
   let fab="";
-  if(IS_BETA&&ui.tab==="set") h+='<div class="banner beta"><b>Versión de prueba.</b> Aquí se prueban los cambios antes de llegar a la versión normal. Sus datos están separados: lo que hagas aquí no toca tu inventario real.</div>';
+  if(IS_BETA&&ui.tab==="set") h+='<div class="banner beta"><b>Versión de prueba.</b> Aquí se prueban los cambios antes de llegar a la versión normal. Sus datos están separados: lo que hagas aquí no toca tu inventario real.</div>'
+    +'<div class="setbox pvbox"><div class="setrow"><div style="min-width:0"><div class="t">'+(PREVIEW?"Estás en la vista previa":"Ver la app desde cero")+'</div><div class="s">'+(PREVIEW?"Al salir vuelve todo como estaba: tu tienda, tu sesión y tus fotos.":"Ábrela como alguien que la instala por primera vez. Tus datos no se tocan y vuelven al salir.")+'</div></div>'
+    +'<button class="btn" data-act="'+(PREVIEW?"pv-end":"pv-start")+'">'+(PREVIEW?"Salir":"Ver")+'</button></div></div>';
   if(mode==="local"&&!IN_ANDROID&&!IN_WEB) h+='<div class="banner">Los cambios se guardan solo en este dispositivo. Abre la app desde su enlace en Claude para guardarlos en la app.</div>';
   if(ro) h+='<div class="banner">Estás viendo este inventario en modo solo lectura.</div>';
 
@@ -1953,6 +1979,8 @@ root.addEventListener("click",e=>{
   else if(a==="xexport") exportExcel();
   else if(a==="xtpl") downloadTemplate();
   else if(a==="auth-in"||a==="auth-up"){ ui.modal={kind:"auth",tab:a==="auth-up"?"up":"in",email:""}; render(); setTimeout(()=>{ const i=$("aemail"); if(i) i.focus(); },250); }
+  else if(a==="pv-start"){ busy=true; previewStart(); }
+  else if(a==="pv-end"){ busy=true; previewEnd(); }
   else if(a==="nudge-x"){ lsSet(NUDGE_KEY,Date.now()); render(); toast("Puedes crear tu cuenta cuando quieras en Ajustes"); }
   else if(a==="auth-tab"){ const m=ui.modal, em=$("aemail"); if(em) m.email=em.value; m.tab=d.t; m.err=""; m.sent=""; render(); }
   else if(a==="cloud-now"){ if(nube.hold) cloudSync({force:true}); else { nube.dirty=nube.dirty||!nube.at; cloudSync({force:true}).then(()=>{ if(cloud.st==="ok"&&!nube.hold) toast("Tu tienda está guardada en la nube"); }); } }
