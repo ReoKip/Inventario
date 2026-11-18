@@ -343,7 +343,20 @@ textarea.mono{font-family:ui-monospace,Menlo,monospace;font-size:13px}
 .betapill{display:inline-block;vertical-align:1px;margin-right:6px;padding:1px 7px;border-radius:99px;background:#2563eb;color:#fff;font-size:10px;font-weight:700;letter-spacing:.06em}
 .cdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px;background:var(--muted)}.cdot.ok{background:#16a34a}.cdot.warn{background:#d97706}.cdot.busy{background:#60a5fa}
 .cchoice{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px}.cchoice .t{font-weight:700}.cchoice .s{font-size:13px;color:var(--muted);margin-top:2px}.cchoice .btn{width:100%;margin-top:10px}
-.onb-login{display:block;margin:18px auto 0;font-size:14px}
+.onb-brand{display:flex;flex-direction:column;align-items:center;text-align:center}
+.onb-brand .lead{max-width:330px;margin-bottom:18px}
+.onb-hero.big{width:96px;height:96px;border-radius:28px;margin-bottom:14px}
+.onb-name{font-size:46px;font-weight:800;letter-spacing:-.03em;line-height:1.05;margin-bottom:10px}
+.onb-perks{list-style:none;padding:0;margin:0;display:grid;gap:8px;width:100%;max-width:340px;text-align:left}
+.onb-perks li{display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 14px;font-size:15px;font-weight:500}
+.onb-perks .ic{flex:0 0 26px;height:26px;border-radius:8px;background:var(--accent-soft);color:var(--accent-text);display:flex;align-items:center;justify-content:center}
+.onb-foot.col{flex-direction:column}.onb-foot.col .btn{flex:none;width:100%}
+.onb-guest{align-self:center;font-size:15px;padding:8px 12px;text-decoration:none;color:var(--muted)}
+@media (max-height:700px){.onb-body:has(.onb-brand){padding:6px 0 12px}.onb-hero.big{width:64px;height:64px;border-radius:20px;margin-bottom:8px}.onb-hero.big svg{width:36px;height:36px}.onb-name{font-size:36px;margin-bottom:6px}.onb-brand .lead{font-size:15px;margin-bottom:12px}.onb-perks{gap:6px}.onb-perks li{padding:7px 12px;font-size:14px}.onb-foot.col{gap:8px}.onb-foot.col .btn{min-height:46px}.onb-guest{padding:4px 12px}}
+.nudge{display:flex;gap:10px;align-items:center;background:var(--accent-soft);border-radius:14px;padding:12px 10px 12px 14px;margin:2px 0 12px}
+.nudge>div{flex:1}.nudge b{display:block;font-size:15px}.nudge span{display:block;font-size:13px;color:var(--muted);margin-top:2px}
+.nudge .btn{flex:none;min-height:40px;padding:8px 12px;white-space:nowrap}
+.nudge .nx{flex:none;border:none;background:none;font-size:24px;line-height:1;color:var(--muted);padding:4px 6px;cursor:pointer}
 .soon{display:flex;gap:12px;align-items:flex-start;background:var(--card);border:1px dashed var(--line);border-radius:var(--radius);padding:14px 16px}
 .soon .soonic{flex:none;width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--chip,rgba(118,82,210,.1));color:var(--muted)}
 .soon .t{font-weight:600;color:var(--muted)}.soon .s{font-size:13px;color:var(--muted);margin-top:2px}
@@ -743,6 +756,8 @@ function cloudStatus(){
   if(nube.dirty) return '<span class="cdot busy"></span>Cambios por guardar…';
   return nube.at?'<span class="cdot ok"></span>Guardado en la nube · '+agoTxt(nube.at):'<span class="cdot busy"></span>Conectando…';
 }
+const NUDGE_KEY="stok-recordatorio"+KEY_SUFFIX;
+function nudgeOn(){ if(!CLOUD_OK||ses||mode!=="local"||state.products.length<10) return false; const t=Number(lsGet(NUDGE_KEY))||0; return Date.now()-t>14*864e5; }
 function cloudPaint(){ const el=$("cloudst"); if(el) el.innerHTML=cloudStatus(); }
 if(CLOUD_OK){
   window.addEventListener("online",()=>{ if(ses) cloudSync(); });
@@ -1333,6 +1348,8 @@ function render(){
     if(!P.length) h+='<div class="empty"><b>'+(state.setup.owner?esc(firstName(state.setup.owner))+", aún no hay productos":"Aún no hay productos")+'</b>Toca “Nuevo” para agregar el primero, o importa un Excel desde Ajustes.'+(ro?"":'<div style="margin-top:14px"><button class="btn" data-act="samples">Agregar productos de ejemplo</button></div><div style="margin-top:8px"><button class="btn" data-act="guide">Ver guía de uso</button></div>')+'</div>';
     else if(!list.length) h+='<div class="empty"><b>Sin resultados</b>Prueba con otra búsqueda o quita los filtros.</div>';
     else {
+      if(nudgeOn()) h+='<div class="nudge"><div style="min-width:0"><b>Respalda tu inventario</b><span>Crea una cuenta gratis y no pierdas tus productos si cambias o pierdes el teléfono.</span></div>'
+        +'<button class="btn primary" data-act="auth-up">Crear cuenta</button><button class="nx" data-act="nudge-x" aria-label="Ahora no">×</button></div>';
       h+='<div class="count">'+nf.format(list.length)+(list.length===1?" producto":" productos")+(list.length!==P.length?" de "+nf.format(P.length):"")+'</div>';
       const sellB=p=>'<button class="qbtn plus" data-act="out" data-id="'+p.id+'">Vender</button>';
       if(ui.view==="list"){
@@ -1565,7 +1582,7 @@ function authForm(f){
     ui.modal=null; render(); toast(m.tab==="up"?"¡Cuenta creada! Guardando tu tienda…":"Sesión iniciada");
     return cloudSync({force:true,quiet:true}).then(()=>{
       if(ui.modal) return; // hay que elegir qué versión conservar
-      if(ui.onbSaved){ if(state.setup.type){ ui.onbSaved=null; ui.tab="inv"; toast("¡Listo! Tu tienda ya está en este teléfono"); } else { ui.onb=ui.onbSaved; ui.onbSaved=null; toast("Cuenta lista. Ahora configura tu tienda."); } }
+      if(ui.onbSaved){ if(state.setup.type){ ui.onbSaved=null; ui.tab="inv"; toast("¡Listo! Tu tienda ya está en este teléfono"); } else { ui.onb=ui.onbSaved; ui.onbSaved=null; if(ui.onb.seq[ui.onb.i]===0) ui.onb.i++; toast("Cuenta lista. Ahora configura tu tienda."); } }
       render();
     });
   },err=>{ busy=false; m.err=authMsg(err); render(); });
@@ -1582,11 +1599,17 @@ function renderOnb(){
   const last=o.i===o.seq.length-1, inGuide=step>=3&&step<=6;
   let h='<div class="onb"><div class="onb-top"><div class="dots">'+o.seq.map((s,i)=>'<i class="'+(i===o.i?"on":"")+'"></i>').join("")+'</div>'
     +(o.kind==="full"&&inGuide?'<button class="skip" data-onb="skip">Saltar guía</button>':o.kind!=="full"?'<button class="skip" data-onb="close">Cerrar</button>':"")+'</div><div class="onb-body">';
-  if(step===0){
+  const acctStart=step===0&&o.kind==="full"&&CLOUD_OK&&!ses;
+  if(acctStart){
+    const ck='<span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>';
+    h+='<div class="onb-brand"><div class="onb-hero big">'+LOGO_SVG(52)+'</div><div class="onb-name grad">Stok</div>'
+      +'<p class="lead">Tu inventario en el bolsillo: productos, ventas y stock desde el celular.</p>'
+      +'<ul class="onb-perks"><li>'+ck+'Tu inventario respaldado en la nube</li><li>'+ck+'Ábrelo en todos tus teléfonos</li><li>'+ck+'Gratis</li></ul></div>';
+  } else if(step===0){
     h+='<div class="onb-hero">'+LOGO_SVG(40)+'</div><h2>Bienvenido a <span class="grad">Stok</span></h2>'
       +'<p class="lead">Tu inventario en el bolsillo. Lleva el control de tus productos, ventas y stock desde el celular. Te haremos un par de preguntas para dejar la app a tu medida y luego te mostramos cómo usarla. Toma menos de un minuto.</p>'
       +'<div class="tips">'+tip(HERO.box.replace(/38/g,"18"),"Tus productos","Con foto, precio, costo y stock.")+tip(HERO.cart.replace(/38/g,"18"),"Ventas y entradas","Registra cada venta o compra en segundos.")+tip(HERO.chart.replace(/38/g,"18"),"Resumen claro","Cuánto vendiste, tu margen y qué reponer.")+'</div>'
-      +(CLOUD_OK&&!ses?'<button type="button" class="linkb onb-login" data-onb="login">¿Ya usas Stok en otro teléfono? Entra a tu cuenta</button>':"");
+;
   } else if(step===1){
     h+='<div class="onb-hero">'+HERO.user+'</div><h2>'+(o.kind==="profile"?"Tus datos":"Cuéntanos de ti")+'</h2><p class="lead">Así personalizamos la app para ti.</p>'
       +'<form id="onbf"><div class="field"><label>¿Cómo te llamas?</label><input type="text" id="ob-owner" value="'+esc(o.owner)+'" placeholder="Tu nombre" autocomplete="given-name" maxlength="40"></div>'
@@ -1623,6 +1646,11 @@ function renderOnb(){
       +(state.products.length?"":'<label class="check"><input type="checkbox" id="ob-sample"'+(o.sample?" checked":"")+'><div><b>Agregar 3 productos de ejemplo</b><span>Para probar la app sin miedo. Los puedes borrar cuando quieras.</span></div></label>');
   }
   if(o.err) h+='<div class="err" style="margin-top:14px">'+esc(o.err)+'</div>';
+  if(acctStart){
+    h+='</div><div class="onb-foot col"><button class="btn primary" data-onb="signup">Crear cuenta gratis</button><button class="btn" data-onb="login">Ya tengo cuenta: Entrar</button>'
+      +'<button type="button" class="linkb onb-guest" data-onb="guest">Probar sin cuenta</button></div></div>';
+    root.innerHTML=h; return;
+  }
   h+='</div><div class="onb-foot">'+(o.i>0?'<button class="btn" data-onb="back">Atrás</button>':"")
     +'<button class="btn primary" data-onb="next">'+(step===0?"Comenzar":last?(o.kind==="full"?"Empezar a usar la app":o.kind==="profile"?"Guardar":"Entendido"):"Siguiente")+'</button></div></div>';
   root.innerHTML=h;
@@ -1761,7 +1789,7 @@ function renderModal(){
       +'<div class="mfoot" style="margin-top:12px"><button class="btn" data-act="close">Cerrar</button></div>';
   } else if(m.kind==="auth"){
     const up=m.tab==="up";
-    h+='<h2>'+(up?"Crear tu cuenta":"Entrar a tu cuenta")+'</h2>'
+    h+='<h2>'+(up?"Crea tu cuenta de Stok":"Entra a Stok")+'</h2>'
       +'<div class="seg" style="margin-bottom:12px"><button type="button" data-act="auth-tab" data-t="in" class="'+(up?"":"on")+'">Entrar</button><button type="button" data-act="auth-tab" data-t="up" class="'+(up?"on":"")+'">Crear cuenta</button></div>'
       +(m.sent?'<div class="buyinfo" style="margin-bottom:12px">Te enviamos un correo a <b>'+esc(m.sent)+'</b>. Ábrelo y toca el enlace para confirmar tu cuenta. Después vuelve aquí y toca <b>Entrar</b>.</div>'
         :'<p class="hint" style="font-size:14px;margin-top:0">'+(up?"Tu inventario se guardará en la nube y podrás abrirlo en otro teléfono. Solo tú puedes verlo.":"Usa el correo y la contraseña de tu cuenta de Stok.")+'</p>')
@@ -1849,7 +1877,8 @@ root.addEventListener("click",e=>{
     else if(d.onb==="back"){ syncOnb(); o.err=""; o.i=Math.max(0,o.i-1); render(); }
     else if(d.onb==="skip"){ syncOnb(); o.err=""; o.i=o.seq.length-1; render(); }
     else if(d.onb==="close"){ ui.onb=null; render(); }
-    else if(d.onb==="login"){ syncOnb(); ui.onbSaved=o; ui.onb=null; ui.modal={kind:"auth",tab:"in",email:""}; render(); }
+    else if(d.onb==="login"||d.onb==="signup"){ syncOnb(); ui.onbSaved=o; ui.onb=null; ui.modal={kind:"auth",tab:d.onb==="signup"?"up":"in",email:""}; render(); setTimeout(()=>{ const i=$("aemail"); if(i) i.focus(); },250); }
+    else if(d.onb==="guest"){ o.guest=true; o.err=""; o.i++; render(); window.scrollTo(0,0); }
     return; }
   if(d.otype){ ui.onb.type=d.otype; ui.onb.err=""; render(); return; }
   if(d.themeSet){ if(d.themeSet!==theme){ ui.thFrom=theme==="dark"?1:0; setTheme(d.themeSet); } return; }
@@ -1924,6 +1953,7 @@ root.addEventListener("click",e=>{
   else if(a==="xexport") exportExcel();
   else if(a==="xtpl") downloadTemplate();
   else if(a==="auth-in"||a==="auth-up"){ ui.modal={kind:"auth",tab:a==="auth-up"?"up":"in",email:""}; render(); setTimeout(()=>{ const i=$("aemail"); if(i) i.focus(); },250); }
+  else if(a==="nudge-x"){ lsSet(NUDGE_KEY,Date.now()); render(); toast("Puedes crear tu cuenta cuando quieras en Ajustes"); }
   else if(a==="auth-tab"){ const m=ui.modal, em=$("aemail"); if(em) m.email=em.value; m.tab=d.t; m.err=""; m.sent=""; render(); }
   else if(a==="cloud-now"){ if(nube.hold) cloudSync({force:true}); else { nube.dirty=nube.dirty||!nube.at; cloudSync({force:true}).then(()=>{ if(cloud.st==="ok"&&!nube.hold) toast("Tu tienda está guardada en la nube"); }); } }
   else if(a==="logout"){ ui.modal={kind:"logout"}; render(); }
