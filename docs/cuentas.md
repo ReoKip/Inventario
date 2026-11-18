@@ -1,7 +1,28 @@
 # Cuentas en Stok — plan
 
-Estado: **propuesta, sin implementar**. Este documento describe cómo agregar cuentas de usuario a Stok,
-paso a paso, sin romper lo que hoy funciona.
+Estado: **fase 1 lista en la versión de prueba (beta)**, pendiente de aprobación para la versión normal.
+
+## Qué ya está hecho (fase 1)
+
+- Proyecto Supabase **stok** (São Paulo). URL `https://fyywjxxyqtvieidtwepm.supabase.co`; la clave pública
+  (`sb_publishable_…`) está en `inventario.html`. La clave secreta no está en ningún lado del repositorio.
+- Tabla `tiendas` (una copia completa por persona y por versión normal/beta) y carpeta privada `fotos`
+  en Storage. Reglas de seguridad probadas: una cuenta no puede ver, cambiar ni robar datos de otra.
+  El SQL está en `supabase/migrations/`.
+- En la app (web y Android, no dentro de Claude): Ajustes → **Tu cuenta** (crear cuenta, entrar, guardar ahora,
+  cerrar sesión) y en la bienvenida **"¿Ya usas Stok en otro teléfono? Entra a tu cuenta"**.
+- Cada cambio se sube solo a los ~2 segundos; sin internet queda pendiente y se sube al volver la conexión.
+- Si la tienda cambió en dos teléfonos a la vez, la app pregunta cuál versión conservar.
+
+## Pendiente antes de abrir las cuentas a todos
+
+1. **Confirmación de correo:** el correo que trae Supabase solo llega a los miembros del equipo y unos pocos por
+   hora. Por eso, durante la beta está **desactivada** (*Authentication → Sign In / Providers → Email → Confirm email*, 2026-11-18).
+   Para el lanzamiento: conectar un servicio de correo propio (SMTP, por ejemplo Resend) y volver a activarla,
+   y también "¿Olvidaste tu contraseña?".
+2. **Borrar mi cuenta** desde la app (lo exige Google Play).
+3. **Política de privacidad** y términos.
+4. Entrar con Google (opcional).
 
 ## Por qué
 

@@ -20,6 +20,8 @@ self.addEventListener("fetch", e => {
   const req = e.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
+  // La cuenta en la nube (Supabase) siempre va directo a internet: nunca se guarda una copia.
+  if (url.hostname.endsWith(".supabase.co")) return;
   // La versión normal no guarda archivos de la beta (la beta tiene su propio service worker).
   if (!BETA && url.origin === location.origin && url.pathname.includes("/beta/")) return;
   const isPage = req.mode === "navigate" || url.pathname.endsWith(".html");

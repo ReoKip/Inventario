@@ -13,10 +13,6 @@ permissions:
   pages: write
   id-token: write
 
-concurrency:
-  group: pages
-  cancel-in-progress: true
-
 jobs:
   # GitHub solo deja publicar desde main. Si el cambio llegó a beta, se le pide a main
   # que vuelva a armar y publicar el sitio (que incluye la beta).
@@ -32,6 +28,9 @@ jobs:
   deploy:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    concurrency:
+      group: pages
+      cancel-in-progress: true
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
