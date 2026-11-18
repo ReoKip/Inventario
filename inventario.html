@@ -350,6 +350,8 @@ textarea.mono{font-family:ui-monospace,Menlo,monospace;font-size:13px}
 .onb-perks{list-style:none;padding:0;margin:0;display:grid;gap:8px;width:100%;max-width:340px;text-align:left}
 .onb-perks li{display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 14px;font-size:15px;font-weight:500}
 .onb-perks .ic{flex:0 0 26px;height:26px;border-radius:8px;background:var(--accent-soft);color:var(--accent-text);display:flex;align-items:center;justify-content:center}
+.onb-hero.sm{width:60px;height:60px;border-radius:18px;margin-bottom:16px}
+.onb-authp .field{margin-bottom:14px}
 .onb-foot.col{flex-direction:column}.onb-foot.col .btn{flex:none;width:100%}
 .onb-guest{align-self:center;font-size:15px;padding:8px 12px;text-decoration:none;color:var(--muted)}
 @media (max-height:700px){.onb-body:has(.onb-brand){padding:6px 0 12px}.onb-hero.big{width:64px;height:64px;border-radius:20px;margin-bottom:8px}.onb-hero.big svg{width:36px;height:36px}.onb-name{font-size:36px;margin-bottom:6px}.onb-brand .lead{font-size:15px;margin-bottom:12px}.onb-perks{gap:6px}.onb-perks li{padding:7px 12px;font-size:14px}.onb-foot.col{gap:8px}.onb-foot.col .btn{min-height:46px}.onb-guest{padding:4px 12px}}
@@ -1597,15 +1599,24 @@ function finishOnb(){
   ui.tab="inv"; commit();
   toast(o.kind==="profile"?"Datos actualizados":"¡Listo, "+firstName(state.setup.owner)+"!"+(n?" Se agregaron "+n+" ejemplos.":""));
 }
-function authForm(f){
-  const m=ui.modal, email=f.email.value.trim().toLowerCase(), pass=f.pass.value; m.email=email; m.err="";
+function authForm(f,onbPage){
+  const m=onbPage?ui.onb.auth:ui.modal, email=f.email.value.trim().toLowerCase(), pass=f.pass.value; m.email=email; m.err="";
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ m.err="Escribe tu correo (ej.: nombre@gmail.com)."; render(); return; }
   if(pass.length<6){ m.err=m.tab==="up"?"La contraseña debe tener al menos 6 caracteres.":"Escribe tu contraseña."; render(); return; }
   busy=true; const b=$("fsub"); if(b){ b.disabled=true; b.textContent="Conectando…"; }
   authSubmit(m.tab,email,pass).then(r=>{
-    busy=false;
-    if(r==="confirm"){ m.sent=email; m.tab="in"; render(); return; }
-    ui.modal=null; render(); toast(m.tab==="up"?"¡Cuenta creada! Guardando tu tienda…":"Sesión iniciada");
+    if(r==="confirm"){ busy=false; m.sent=email; m.tab="in"; render(); return; }
+    if(onbPage){ // página del tutorial: se queda en pantalla completa mientras baja la tienda
+      if(b) b.textContent="Cargando tu tienda…";
+      return cloudSync({force:true,quiet:true}).then(()=>{
+        busy=false; const o=ui.onb||ui.onbSaved;
+        if(ui.modal) return; // hay que elegir qué versión conservar
+        if(state.setup.type){ ui.onb=null; ui.onbSaved=null; ui.tab="inv"; toast("¡Listo! Tu tienda ya está en este teléfono"); }
+        else if(o){ ui.onb=o; ui.onbSaved=null; o.auth=null; if(o.seq[o.i]===0) o.i++; toast(m.tab==="up"?"¡Cuenta creada! Ahora configura tu tienda.":"Sesión iniciada. Ahora configura tu tienda."); }
+        render(); window.scrollTo(0,0);
+      });
+    }
+    busy=false; ui.modal=null; render(); toast(m.tab==="up"?"¡Cuenta creada! Guardando tu tienda…":"Sesión iniciada");
     return cloudSync({force:true,quiet:true}).then(()=>{
       if(ui.modal) return; // hay que elegir qué versión conservar
       if(ui.onbSaved){ if(state.setup.type){ ui.onbSaved=null; ui.tab="inv"; toast("¡Listo! Tu tienda ya está en este teléfono"); } else { ui.onb=ui.onbSaved; ui.onbSaved=null; if(ui.onb.seq[ui.onb.i]===0) ui.onb.i++; toast("Cuenta lista. Ahora configura tu tienda."); } }
@@ -1619,7 +1630,23 @@ function closeModal(){
   if(ui.onbSaved){ if(!state.setup.type) ui.onb=ui.onbSaved; ui.onbSaved=null; }
   render();
 }
+function renderOnbAuth(o){
+  const m=o.auth, up=m.tab==="up";
+  let h='<div class="onb"><div class="onb-top"><button class="skip" data-onb="auth-back">‹ Atrás</button><span></span></div><div class="onb-body onb-authp">'
+    +'<div class="onb-hero sm">'+LOGO_SVG(30)+'</div>'
+    +'<h2>'+(up?'Crea tu cuenta de <span class="grad">Stok</span>':'Entra a <span class="grad">Stok</span>')+'</h2>'
+    +(m.sent?'<div class="buyinfo" style="margin-bottom:14px">Te enviamos un correo a <b>'+esc(m.sent)+'</b>. Ábrelo y toca el enlace para confirmar tu cuenta. Después vuelve aquí y toca <b>Entrar</b>.</div>'
+      :'<p class="lead">'+(up?"Tu inventario se guardará en la nube y podrás abrirlo en otro teléfono. Solo tú puedes verlo.":"Usa el correo y la contraseña de tu cuenta de Stok. Tu tienda aparecerá en este teléfono.")+'</p>')
+    +'<form id="onbauthf" novalidate><div class="field"><label>Correo</label><input type="email" name="email" id="aemail" value="'+esc(m.email||"")+'" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" maxlength="120" placeholder="nombre@correo.com"></div>'
+    +'<div class="field"><label>Contraseña</label><input type="password" name="pass" id="apass" autocomplete="'+(up?"new-password":"current-password")+'" maxlength="72"'+(up?' placeholder="Al menos 6 caracteres"':"")+'></div>'
+    +(m.err?'<div class="err">'+esc(m.err)+'</div>':"")
+    +'<button type="submit" hidden></button></form></div>'
+    +'<div class="onb-foot col"><button class="btn primary" type="submit" form="onbauthf" id="fsub">'+(up?"Crear cuenta":"Entrar")+'</button>'
+    +'<button type="button" class="linkb onb-guest" data-onb="auth-tab" data-t="'+(up?"in":"up")+'">'+(up?"¿Ya tienes cuenta? Entra aquí":"¿No tienes cuenta? Crea una gratis")+'</button></div></div>';
+  root.innerHTML=h;
+}
 function renderOnb(){
+  if(ui.onb.auth){ renderOnbAuth(ui.onb); return; }
   const o=ui.onb, step=o.seq[o.i], st=STYPES[o.type]||STDEF, nm=esc(firstName(o.owner));
   const vs=esc(st.vs.toLowerCase());
   const last=o.i===o.seq.length-1, inGuide=step>=3&&step<=6;
@@ -1819,7 +1846,7 @@ function renderModal(){
       +'<div class="seg" style="margin-bottom:12px"><button type="button" data-act="auth-tab" data-t="in" class="'+(up?"":"on")+'">Entrar</button><button type="button" data-act="auth-tab" data-t="up" class="'+(up?"on":"")+'">Crear cuenta</button></div>'
       +(m.sent?'<div class="buyinfo" style="margin-bottom:12px">Te enviamos un correo a <b>'+esc(m.sent)+'</b>. Ábrelo y toca el enlace para confirmar tu cuenta. Después vuelve aquí y toca <b>Entrar</b>.</div>'
         :'<p class="hint" style="font-size:14px;margin-top:0">'+(up?"Tu inventario se guardará en la nube y podrás abrirlo en otro teléfono. Solo tú puedes verlo.":"Usa el correo y la contraseña de tu cuenta de Stok.")+'</p>')
-      +'<form id="f"><div class="field"><label>Correo</label><input type="email" name="email" id="aemail" value="'+esc(m.email||"")+'" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" maxlength="120"></div>'
+      +'<form id="f" novalidate><div class="field"><label>Correo</label><input type="email" name="email" id="aemail" value="'+esc(m.email||"")+'" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" maxlength="120"></div>'
       +'<div class="field"><label>Contraseña</label><input type="password" name="pass" id="apass" autocomplete="'+(up?"new-password":"current-password")+'" maxlength="72">'+(up?'<div class="hint">Al menos 6 caracteres.</div>':"")+'</div>'
       +(m.err?'<div class="err">'+esc(m.err)+'</div>':"")
       +'<div class="mfoot"><button type="button" class="btn" data-act="close">Cancelar</button><button class="btn primary" type="submit" id="fsub">'+(up?"Crear cuenta":"Entrar")+'</button></div></form>';
@@ -1903,7 +1930,9 @@ root.addEventListener("click",e=>{
     else if(d.onb==="back"){ syncOnb(); o.err=""; o.i=Math.max(0,o.i-1); render(); }
     else if(d.onb==="skip"){ syncOnb(); o.err=""; o.i=o.seq.length-1; render(); }
     else if(d.onb==="close"){ ui.onb=null; render(); }
-    else if(d.onb==="login"||d.onb==="signup"){ syncOnb(); ui.onbSaved=o; ui.onb=null; ui.modal={kind:"auth",tab:d.onb==="signup"?"up":"in",email:""}; render(); setTimeout(()=>{ const i=$("aemail"); if(i) i.focus(); },250); }
+    else if(d.onb==="login"||d.onb==="signup"){ syncOnb(); o.auth={tab:d.onb==="signup"?"up":"in",email:""}; render(); window.scrollTo(0,0); }
+    else if(d.onb==="auth-back"){ o.auth=null; render(); window.scrollTo(0,0); }
+    else if(d.onb==="auth-tab"){ const em=$("aemail"); if(em) o.auth.email=em.value; o.auth.tab=d.t; o.auth.err=""; o.auth.sent=""; render(); }
     else if(d.onb==="guest"){ o.guest=true; o.err=""; o.i++; render(); window.scrollTo(0,0); }
     return; }
   if(d.otype){ ui.onb.type=d.otype; ui.onb.err=""; render(); return; }
@@ -2035,6 +2064,7 @@ root.addEventListener("click",e=>{
 });
 root.addEventListener("submit",e=>{
   e.preventDefault(); if(busy) return;
+  if(e.target.id==="onbauthf"){ if(ui.onb&&ui.onb.auth) authForm(e.target,true); return; }
   if(e.target.id==="onbf"){ onbNext(); return; }
   if(e.target.id==="asf"){ assistSend(); return; }
   if(ui.modal&&ui.modal.kind==="auth"){ authForm(e.target); return; }
@@ -2189,7 +2219,7 @@ if(AND){
   window.__androidBack=()=>{
     if(busy) return true;
     if(ui.modal){ closeModal(); return true; }
-    if(ui.onb){ if(ui.onb.i>0){ syncOnb(); ui.onb.err=""; ui.onb.i--; render(); return true; } if(ui.onb.kind!=="full"){ ui.onb=null; render(); return true; } return false; }
+    if(ui.onb){ if(ui.onb.auth){ ui.onb.auth=null; render(); return true; } if(ui.onb.i>0){ syncOnb(); ui.onb.err=""; ui.onb.i--; render(); return true; } if(ui.onb.kind!=="full"){ ui.onb=null; render(); return true; } return false; }
     if(ui.tab!=="inv"){ ui.anim="l"; ui.prevTab=ui.tab; ui.tab="inv"; render(); window.scrollTo(0,0); return true; }
     return false;
   };
