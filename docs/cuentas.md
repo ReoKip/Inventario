@@ -17,7 +17,7 @@ Estado: **fase 1 lista en la versión de prueba (beta)**, pendiente de aprobaci�
 ## Pendiente antes de abrir las cuentas a todos
 
 1. **Confirmación de correo:** el correo que trae Supabase solo llega a los miembros del equipo y unos pocos por
-   hora. Mientras estemos en beta: desactivar *Authentication → Sign In / Providers → Email → Confirm email*.
+   hora. Por eso, durante la beta está **desactivada** (*Authentication → Sign In / Providers → Email → Confirm email*, 2026-11-18).
    Para el lanzamiento: conectar un servicio de correo propio (SMTP, por ejemplo Resend) y volver a activarla,
    y también "¿Olvidaste tu contraseña?".
 2. **Borrar mi cuenta** desde la app (lo exige Google Play).
