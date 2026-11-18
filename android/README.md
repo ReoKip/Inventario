@@ -27,5 +27,5 @@ Luego:
 
 `inventario.keystore` es la clave con la que se firma la app. Usa siempre la misma: si cambia,
 Android no deja actualizar la app instalada y habría que desinstalarla (y se perderían los datos).
-La versión visible (`versionName`, hoy 0.1) se cambia a mano en `AndroidManifest.xml` solo cuando hay cambios importantes.
+La versión visible (`versionName`, hoy 0.2) se cambia a mano en `AndroidManifest.xml` solo cuando hay cambios importantes.
 El número interno (`versionCode`) lo calcula `build.sh` a partir de los commits, para que cada APK nueva se instale encima de la anterior.

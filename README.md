@@ -5,7 +5,7 @@ ventas, entradas, cierre de caja, lista de compra, toma de inventario, Excel y r
 
 - **App web (iPhone, Android o computador):** **https://reokip.github.io/Inventario/**
   En iPhone: ábrela en Safari → Compartir → Agregar a pantalla de inicio. El código es [`inventario.html`](inventario.html).
-- **App de Android (versión 0.1):** [descargar `Inventario.apk`](android/Inventario.apk?raw=1).
+- **App de Android (versión 0.2):** [descargar `Inventario.apk`](android/Inventario.apk?raw=1).
   Instrucciones de instalación en [`android/README.md`](android/README.md).
 - **iPhone (y cualquier teléfono):** la app web se instala desde el navegador y funciona sin internet.
   Ábrela en **Safari** desde https://reokip.github.io/Inventario/ y toca **Compartir → Agregar a pantalla de inicio**. Los pasos también aparecen dentro de la app, en Ajustes.
